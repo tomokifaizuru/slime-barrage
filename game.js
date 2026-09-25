@@ -1,8 +1,8 @@
 /**
- * Slime Barrage v0.2
+ * Slime Barrage v0.3
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
- * Procedural Web Audio SFX (no copyrighted audio).
+ * Procedural Web Audio SFX + original GB-inspired BGM (no copyrighted audio).
  */
 (() => {
   'use strict';
@@ -11,7 +11,7 @@
   const W = 480, H = 270;
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME = 180; // 3 minutes
-  const VERSION = 'v0.2';
+  const VERSION = 'v0.3';
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -57,8 +57,97 @@
   const AudioFX = (() => {
     let ctxA = null;
     let master = null;
+    let sfxGain = null;
+    let bgmGain = null;
     let muted = localStorage.getItem('slimeBarrageMuted') === '1';
     let unlocked = false;
+
+    let bgmWanted = false;
+    let bgmPlaying = false;
+    let bgmTimer = null;
+    let bgmNextTime = 0;
+    let bgmStep = 0;
+    let pulse50 = null;
+    let pulse25 = null;
+
+    const BGM_BPM = 120;
+    const BGM_STEPS_PER_BEAT = 2; // eighth notes
+    const BGM_STEP = 60 / BGM_BPM / BGM_STEPS_PER_BEAT;
+    const BGM_LOOKAHEAD = 0.12;
+    const BGM_SCHEDULE_AHEAD = 0.25;
+    const BGM_GAIN = 0.15;
+
+    // Original "Moonlit Meadow" — G major cozy night walk (NOT Nintendo melodies)
+    // 16 bars × 8 eighths = 128 steps. 0 = rest.
+    const L = {
+      b3: 246.94, d4: 293.66, e4: 329.63, g4: 392.00, a4: 440.00,
+      b4: 493.88, c5: 523.25, d5: 587.33, e5: 659.26
+    };
+    const Bs = {
+      g2: 98.00, b2: 123.47, c3: 130.81, d3: 146.83, e3: 164.81
+    };
+    const Ar = {
+      g3: 196.00, b3: 246.94, d4: 293.66, e4: 329.63,
+      g4: 392.00, a4: 440.00, b4: 493.88, d5: 587.33
+    };
+
+    const LEAD = [
+      // bars 1-4 (theme A)
+      L.b4, 0, L.a4, L.g4, L.e4, 0, L.d4, L.e4,
+      L.g4, 0, L.a4, L.b4, L.a4, L.g4, L.e4, 0,
+      L.d4, L.e4, L.g4, 0, L.a4, L.g4, L.e4, L.d4,
+      L.b3, 0, L.d4, L.e4, L.g4, 0, 0, 0,
+      // bars 5-8 (A')
+      L.b4, L.a4, L.g4, L.e4, L.d4, 0, L.e4, L.g4,
+      L.a4, 0, L.b4, L.d5, L.c5, L.b4, L.a4, L.g4,
+      L.e4, 0, L.g4, L.a4, L.b4, L.a4, L.g4, L.e4,
+      L.d4, 0, L.e4, L.d4, L.b3, 0, 0, 0,
+      // bars 9-12 (bridge B)
+      L.d5, 0, L.b4, L.a4, L.g4, 0, L.a4, L.b4,
+      L.d5, L.e5, L.d5, 0, L.b4, L.a4, L.g4, L.a4,
+      L.b4, 0, L.d5, L.b4, L.a4, L.g4, L.e4, 0,
+      L.d4, L.e4, L.g4, L.a4, L.g4, 0, 0, 0,
+      // bars 13-16 (A return + cadence)
+      L.b4, 0, L.a4, L.g4, L.e4, 0, L.d4, L.e4,
+      L.g4, 0, L.a4, L.b4, L.a4, L.g4, L.e4, L.d4,
+      L.b4, L.g4, L.e4, L.d4, L.e4, L.g4, L.a4, 0,
+      L.g4, 0, L.d4, 0, L.g4, 0, 0, 0,
+    ];
+
+    function hold(freq, n) { const a = []; for (let i = 0; i < n; i++) a.push(freq); return a; }
+    const BASS = [].concat(
+      // bars 1-4
+      hold(Bs.g2, 4), hold(Bs.d3, 4), hold(Bs.e3, 4), hold(Bs.c3, 4),
+      hold(Bs.g2, 4), hold(Bs.d3, 4), hold(Bs.c3, 4), hold(Bs.d3, 4),
+      // bars 5-8
+      hold(Bs.g2, 4), hold(Bs.d3, 4), hold(Bs.e3, 4), hold(Bs.c3, 4),
+      hold(Bs.g2, 4), hold(Bs.b2, 4), hold(Bs.c3, 4), hold(Bs.d3, 4),
+      // bars 9-12
+      hold(Bs.e3, 4), hold(Bs.b2, 4), hold(Bs.c3, 4), hold(Bs.d3, 4),
+      hold(Bs.e3, 4), hold(Bs.g2, 4), hold(Bs.c3, 4), hold(Bs.d3, 4),
+      // bars 13-16
+      hold(Bs.g2, 4), hold(Bs.d3, 4), hold(Bs.e3, 4), hold(Bs.c3, 4),
+      hold(Bs.g2, 4), hold(Bs.e3, 4), hold(Bs.c3, 4), hold(Bs.d3, 2), hold(Bs.g2, 2)
+    );
+
+    const ARP = [].concat(
+      [Ar.g3, Ar.b3, Ar.d4, Ar.b3, Ar.g3, Ar.b3, Ar.d4, Ar.g4],
+      [Ar.d4, Ar.a4, Ar.d5, Ar.a4, Ar.d4, Ar.a4, Ar.d5, Ar.a4],
+      [Ar.e4, Ar.g4, Ar.b4, Ar.g4, Ar.e4, Ar.g4, Ar.b4, Ar.e4],
+      [Ar.g3, Ar.e4, Ar.g4, Ar.e4, Ar.g3, Ar.e4, Ar.g4, Ar.e4],
+      [Ar.g3, Ar.b3, Ar.d4, Ar.b3, Ar.g3, Ar.b3, Ar.d4, Ar.g4],
+      [Ar.d4, Ar.a4, Ar.d5, Ar.a4, Ar.d4, Ar.a4, Ar.d5, Ar.a4],
+      [Ar.e4, Ar.g4, Ar.b4, Ar.g4, Ar.e4, Ar.g4, Ar.a4, Ar.e4],
+      [Ar.d4, Ar.g4, Ar.a4, Ar.g4, Ar.d4, Ar.g4, Ar.a4, Ar.d4],
+      [Ar.e4, Ar.g4, Ar.b4, Ar.g4, Ar.e4, Ar.g4, Ar.b4, Ar.e4],
+      [Ar.b3, Ar.d4, Ar.a4, Ar.d4, Ar.b3, Ar.d4, Ar.a4, Ar.d4],
+      [Ar.g3, Ar.e4, Ar.g4, Ar.e4, Ar.g3, Ar.e4, Ar.g4, Ar.e4],
+      [Ar.d4, Ar.g4, Ar.a4, Ar.g4, Ar.d4, Ar.g4, Ar.a4, Ar.d4],
+      [Ar.g3, Ar.b3, Ar.d4, Ar.b3, Ar.g3, Ar.b3, Ar.d4, Ar.g4],
+      [Ar.e4, Ar.g4, Ar.b4, Ar.g4, Ar.e4, Ar.g4, Ar.b4, Ar.e4],
+      [Ar.g3, Ar.e4, Ar.g4, Ar.e4, Ar.g3, Ar.e4, Ar.g4, Ar.a4],
+      [Ar.g3, Ar.b3, Ar.d4, Ar.g4, Ar.d4, Ar.b3, Ar.g3, 0]
+    );
 
     function ensure() {
       if (ctxA) return true;
@@ -68,7 +157,28 @@
       master = ctxA.createGain();
       master.gain.value = muted ? 0 : 0.35;
       master.connect(ctxA.destination);
+
+      sfxGain = ctxA.createGain();
+      sfxGain.gain.value = 1;
+      sfxGain.connect(master);
+
+      bgmGain = ctxA.createGain();
+      bgmGain.gain.value = BGM_GAIN;
+      bgmGain.connect(master);
+
+      pulse50 = makePulseWave(0.5);
+      pulse25 = makePulseWave(0.25);
       return true;
+    }
+
+    function makePulseWave(duty) {
+      const n = 256;
+      const real = new Float32Array(n);
+      const imag = new Float32Array(n);
+      for (let i = 1; i < n; i++) {
+        imag[i] = (2 / (i * Math.PI)) * Math.sin(Math.PI * i * duty);
+      }
+      return ctxA.createPeriodicWave(real, imag);
     }
 
     async function unlock() {
@@ -77,6 +187,7 @@
         try { await ctxA.resume(); } catch (_) {}
       }
       unlocked = true;
+      if (bgmWanted && !bgmPlaying) startBgm(true);
     }
 
     function setMuted(m) {
@@ -99,7 +210,7 @@
       g.gain.setValueAtTime(0.0001, t0);
       g.gain.exponentialRampToValueAtTime(vol || 0.2, t0 + 0.01);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      o.connect(g); g.connect(master);
+      o.connect(g); g.connect(sfxGain);
       o.start(t0); o.stop(t0 + dur + 0.02);
     }
 
@@ -123,7 +234,7 @@
       } else {
         src.connect(g);
       }
-      g.connect(master);
+      g.connect(sfxGain);
       src.start(t0); src.stop(t0 + dur + 0.02);
     }
 
@@ -149,7 +260,128 @@
     }
     function click() { tone(660, 0.04, 'square', 0.07); }
 
-    return { unlock, toggleMute, setMuted, isMuted, shoot, hit, kill, xp, levelUp, hurt, death, win, click };
+    function bgmPulse(freq, when, dur, wave, vol) {
+      if (!freq || freq <= 0) return;
+      const o = ctxA.createOscillator();
+      const g = ctxA.createGain();
+      o.setPeriodicWave(wave);
+      o.frequency.setValueAtTime(freq, when);
+      const attack = Math.min(0.012, dur * 0.15);
+      const release = Math.min(0.06, dur * 0.35);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(vol, when + attack);
+      const sustainEnd = when + Math.max(attack, dur - release);
+      g.gain.setValueAtTime(vol, sustainEnd);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      o.connect(g); g.connect(bgmGain);
+      o.start(when);
+      o.stop(when + dur + 0.03);
+    }
+
+    function bgmNoiseHit(when, dur, vol) {
+      const n = Math.floor(ctxA.sampleRate * dur);
+      const buf = ctxA.createBuffer(1, n, ctxA.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const src = ctxA.createBufferSource();
+      src.buffer = buf;
+      const f = ctxA.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 1800;
+      f.Q.value = 0.8;
+      const g = ctxA.createGain();
+      g.gain.setValueAtTime(vol, when);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      src.connect(f); f.connect(g); g.connect(bgmGain);
+      src.start(when); src.stop(when + dur + 0.02);
+    }
+
+    function scheduleStep(step, when) {
+      const i = step % 128;
+      const lead = LEAD[i];
+      const bass = BASS[i];
+      const arp = ARP[i];
+      const prevBass = BASS[(i + 127) % 128];
+
+      if (lead) bgmPulse(lead, when, BGM_STEP * 0.85, pulse25, 0.22);
+      if (bass && (bass !== prevBass || i % 4 === 0)) {
+        bgmPulse(bass, when, BGM_STEP * 3.6, pulse50, 0.18);
+      }
+      if (arp && i % 2 === 0) bgmPulse(arp, when, BGM_STEP * 0.7, pulse50, 0.08);
+      const within = i % 8;
+      if (within === 2 || within === 6) bgmNoiseHit(when, 0.045, 0.045);
+    }
+
+    function schedulerTick() {
+      if (!bgmPlaying || !ctxA) return;
+      const now = ctxA.currentTime;
+      while (bgmNextTime < now + BGM_SCHEDULE_AHEAD) {
+        scheduleStep(bgmStep, bgmNextTime);
+        bgmNextTime += BGM_STEP;
+        bgmStep++;
+      }
+    }
+
+    function stopBgmSchedulerOnly() {
+      bgmPlaying = false;
+      if (bgmTimer != null) {
+        clearInterval(bgmTimer);
+        bgmTimer = null;
+      }
+    }
+
+    function startBgm(restart) {
+      bgmWanted = true;
+      if (!ensure() || !unlocked) return;
+      if (ctxA.state === 'suspended') {
+        ctxA.resume().then(() => { if (bgmWanted) startBgm(true); }).catch(() => {});
+        return;
+      }
+      if (bgmPlaying && !restart) return;
+      stopBgmSchedulerOnly();
+      bgmPlaying = true;
+      bgmStep = 0;
+      bgmNextTime = ctxA.currentTime + 0.05;
+      if (bgmGain) {
+        bgmGain.gain.cancelScheduledValues(ctxA.currentTime);
+        bgmGain.gain.setValueAtTime(BGM_GAIN, ctxA.currentTime);
+      }
+      schedulerTick();
+      bgmTimer = setInterval(schedulerTick, BGM_LOOKAHEAD * 1000);
+    }
+
+    function stopBgm(fade) {
+      bgmWanted = false;
+      if (!ensure()) {
+        stopBgmSchedulerOnly();
+        return;
+      }
+      const t = ctxA.currentTime;
+      if (fade && bgmGain && bgmPlaying) {
+        bgmGain.gain.cancelScheduledValues(t);
+        bgmGain.gain.setValueAtTime(Math.max(0.0001, bgmGain.gain.value), t);
+        bgmGain.gain.linearRampToValueAtTime(0.0001, t + 0.35);
+        stopBgmSchedulerOnly();
+        setTimeout(() => {
+          if (!bgmWanted && bgmGain) {
+            bgmGain.gain.cancelScheduledValues(ctxA.currentTime);
+            bgmGain.gain.setValueAtTime(BGM_GAIN, ctxA.currentTime);
+          }
+        }, 400);
+      } else {
+        stopBgmSchedulerOnly();
+        if (bgmGain) {
+          bgmGain.gain.cancelScheduledValues(t);
+          bgmGain.gain.setValueAtTime(BGM_GAIN, t);
+        }
+      }
+    }
+
+    return {
+      unlock, toggleMute, setMuted, isMuted,
+      shoot, hit, kill, xp, levelUp, hurt, death, win, click,
+      startBgm, stopBgm,
+    };
   })();
 
   function syncMuteUI() {
@@ -467,9 +699,11 @@
     showOnly('hud');
     syncHud();
     for (let i = 0; i < 8; i++) spawnSlime(true);
+    AudioFX.startBgm(true);
   }
 
   function goMenu() {
+    AudioFX.stopBgm(true);
     state = 'MENU';
     showOnly('menu');
   }
@@ -615,6 +849,7 @@
 
   function showEnd(won) {
     state = won ? 'WIN' : 'GAMEOVER';
+    AudioFX.stopBgm(true);
     if (won) AudioFX.win(); else AudioFX.death();
     el.endTitle.textContent = won ? 'YOU SURVIVED!' : 'GAME OVER';
     el.endTitle.className = 'panel-title ' + (won ? 'win' : 'lose');

@@ -1,4 +1,4 @@
-# Slime Barrage v0.2
+# Slime Barrage v0.3
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across a night grass field while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and survive **3:00**.
 
@@ -35,6 +35,11 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot, Pierce Shot, Snack Break (heal).
 
+## What’s new in v0.3
+
+- **Original Game Boy–inspired BGM** (“Moonlit Meadow”): procedural Web Audio sequencer in `game.js` — G major, 120 BPM, 16-bar loop. Lead 25% pulse, bass 50% pulse, light arpeggio, soft noise on beats 2/4. Style inspiration only; **no** Nintendo / Pokémon melodies and **no** Hololive / Holocure audio.
+- BGM starts with each run, fades out on game over / win / menu; mute (M / 🔊) silences BGM + SFX together via master gain. Separate `bgmGain` bus (~0.15) keeps music under SFX.
+
 ## What’s new in v0.2
 
 - **Crisp UI text**: canvas keeps pixel world sprites at fixed 480×270 with integer CSS scale + `image-rendering: pixelated`; menus, HUD, and level-up cards are HTML/CSS overlays (system fonts, no upscaled 8px canvas text).
@@ -45,7 +50,7 @@ Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP)
 ```
 index.html   — shell + HTML overlays
 style.css    — letterbox layout, crisp UI, touch stick
-game.js      — game + procedural sprites + SFX
+game.js      — game + procedural sprites + SFX + BGM
 assets/      — art references (not required at runtime)
 README.md
 preview-v02.png
@@ -60,7 +65,6 @@ Sprites are drawn procedurally in canvas (hoodie girl + mint/pink/yellow/purple 
 - Enemy AI is chase-only
 - No save / meta progression
 - Win timer fixed at 3 minutes
-- No BGM yet (SFX only)
 
 ## License / IP
 
