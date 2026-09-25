@@ -367,15 +367,16 @@ html, body {
   margin-top: 0.3em;
 }
 
-/* ---------- Touch stick (fixed px — not tied to --ui-scale) ---------- */
+/* ---------- Floating touch stick (appears at first drag; fixed px) ---------- */
 #touchPad {
   position: absolute;
-  left: max(12px, env(safe-area-inset-left, 0px));
-  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  left: 0;
+  top: 0;
   width: min(112px, 28vw);
   height: min(112px, 28vw);
-  pointer-events: auto;
+  pointer-events: none; /* driven by stage touch listeners */
   z-index: 5;
+  transform: translate(-50%, -50%);
 }
 #touchPad.hidden { display: none; }
 #stickBase {

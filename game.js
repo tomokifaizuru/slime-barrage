@@ -1,8 +1,9 @@
 /**
- * Slime Barrage v0.7
+ * Slime Barrage v0.8
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
- * Procedural Web Audio SFX + original GB-inspired BGM (no copyrighted audio).
+ * HTMLAudio BGM (Moonlit calm / Nightfall boss) with procedural fallback.
+ * Mid-run Pink-Mint Monarch boss, floating touch stick, soft damage numbers.
  * World/camera zoom (VIEW_ZOOM) — UI overlays stay screen-sized.
  */
 (() => {
@@ -15,7 +16,8 @@
   let W = BASE_W, H = BASE_H;
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME = 300; // 5 minutes
-  const VERSION = 'v0.7';
+  const VERSION = 'v0.8';
+  const BOSS_SPAWN_AT = 150; // ~2:30 into 5:00 run
   const VIEW_H_MIN = 270;
   const VIEW_H_MAX = 1200;
   // World→screen zoom: visible meadow is W/1.25 × H/1.25; canvas CSS + UI unchanged.
@@ -177,6 +179,16 @@
     let pulse50 = null;
     let pulse25 = null;
 
+    // HTMLAudio tracks (preferred); procedural sequencer is fallback only.
+    const HTML_BGM_GAIN = 0.42;
+    const HTML_CROSSFADE = 0.55;
+    let htmlTracks = { calm: null, nightfall: null };
+    let htmlTrackName = 'calm';
+    let htmlReady = false;
+    let htmlFailed = false;
+    let htmlUsing = false;
+    let htmlFadeTimer = null;
+
     const BGM_BPM = 120;
     const BGM_STEPS_PER_BEAT = 2; // eighth notes
     const BGM_STEP = 60 / BGM_BPM / BGM_STEPS_PER_BEAT;
@@ -192,6 +204,37 @@
       const duck = bgmDucked ? 0.12 : 1;
       return BGM_GAIN * musicVol * duck;
     }
+    function htmlTargetVol() {
+      if (muted || !bgmWanted) return 0;
+      const duck = bgmDucked ? 0.12 : 1;
+      return Math.max(0, Math.min(1, HTML_BGM_GAIN * musicVol * duck));
+    }
+    function applyHtmlVolumes(instant) {
+      const target = htmlTargetVol();
+      for (const name of Object.keys(htmlTracks)) {
+        const a = htmlTracks[name];
+        if (!a) continue;
+        if (name === htmlTrackName && htmlUsing && bgmWanted) {
+          if (instant) a.volume = target;
+          // otherwise leave in-flight fades alone unless muted/zero
+          else if (muted || target === 0) a.volume = target;
+          else if (Math.abs(a.volume - target) > 0.02 && !htmlFadeTimer) a.volume = target;
+        } else if (instant || muted || !bgmWanted) {
+          if (name !== htmlTrackName || !htmlUsing) {
+            // keep non-active at 0 unless mid-crossfade
+          }
+        }
+      }
+      const active = htmlTracks[htmlTrackName];
+      if (active && htmlUsing && (instant || muted || !htmlFadeTimer)) {
+        active.volume = target;
+      }
+      if (!htmlUsing) {
+        for (const a of Object.values(htmlTracks)) {
+          if (a) a.volume = 0;
+        }
+      }
+    }
     function applyVolumes() {
       if (master) master.gain.value = muted ? 0 : 0.35;
       if (sfxGain) sfxGain.gain.value = sfxVol;
@@ -199,6 +242,154 @@
         bgmGain.gain.cancelScheduledValues(ctxA ? ctxA.currentTime : 0);
         bgmGain.gain.setValueAtTime(Math.max(0.0001, effectiveBgmGain()), ctxA ? ctxA.currentTime : 0);
       }
+      applyHtmlVolumes(false);
+    }
+
+    function ensureHtmlTracks() {
+      if (htmlFailed) return false;
+      if (htmlReady) return true;
+      try {
+        const calm = new Audio('assets/bgm-moonlit-calm.mp3');
+        const night = new Audio('assets/bgm-nightfall.mp3');
+        calm.loop = true; night.loop = true;
+        calm.preload = 'auto'; night.preload = 'auto';
+        calm.volume = 0; night.volume = 0;
+        const fail = () => { htmlFailed = true; htmlUsing = false; };
+        calm.addEventListener('error', fail);
+        night.addEventListener('error', fail);
+        htmlTracks.calm = calm;
+        htmlTracks.nightfall = night;
+        htmlReady = true;
+        return true;
+      } catch (_) {
+        htmlFailed = true;
+        return false;
+      }
+    }
+
+    function clearHtmlFade() {
+      if (htmlFadeTimer != null) {
+        clearInterval(htmlFadeTimer);
+        htmlFadeTimer = null;
+      }
+    }
+
+    function fadeHtmlTo(audio, toVol, durSec, onDone) {
+      clearHtmlFade();
+      if (!audio) { if (onDone) onDone(); return; }
+      const from = audio.volume;
+      const steps = Math.max(8, Math.round(durSec * 30));
+      let i = 0;
+      htmlFadeTimer = setInterval(() => {
+        i++;
+        const t = i / steps;
+        audio.volume = Math.max(0, Math.min(1, from + (toVol - from) * t));
+        if (i >= steps) {
+          clearHtmlFade();
+          audio.volume = toVol;
+          if (onDone) onDone();
+        }
+      }, (durSec * 1000) / steps);
+    }
+
+    function stopAllHtml(fade) {
+      clearHtmlFade();
+      const active = htmlTracks[htmlTrackName];
+      const others = Object.values(htmlTracks).filter(a => a && a !== active);
+      for (const a of others) {
+        try { a.pause(); a.currentTime = 0; } catch (_) {}
+        a.volume = 0;
+      }
+      if (active) {
+        if (fade && active.volume > 0.01) {
+          fadeHtmlTo(active, 0, 0.4, () => {
+            try { active.pause(); } catch (_) {}
+          });
+        } else {
+          try { active.pause(); } catch (_) {}
+          active.volume = 0;
+        }
+      }
+      htmlUsing = false;
+    }
+
+    function playHtmlTrack(name, restart, fadeIn) {
+      if (!ensureHtmlTracks() || htmlFailed) return false;
+      const next = htmlTracks[name];
+      if (!next) return false;
+      const prevName = htmlTrackName;
+      const prev = htmlTracks[prevName];
+      htmlTrackName = name;
+      htmlUsing = true;
+      const target = htmlTargetVol();
+      try {
+        if (restart || next.paused) {
+          if (restart) {
+            try { next.currentTime = 0; } catch (_) {}
+          }
+          const p = next.play();
+          if (p && typeof p.then === 'function') {
+            p.catch(() => {
+              htmlFailed = true;
+              htmlUsing = false;
+              startProceduralBgm(true);
+            });
+          }
+        }
+      } catch (_) {
+        htmlFailed = true;
+        htmlUsing = false;
+        return false;
+      }
+      if (fadeIn && prev && prev !== next && prevName !== name) {
+        next.volume = 0;
+        // crossfade
+        clearHtmlFade();
+        const steps = Math.max(8, Math.round(HTML_CROSSFADE * 30));
+        let i = 0;
+        const fromPrev = prev.volume;
+        htmlFadeTimer = setInterval(() => {
+          i++;
+          const t = i / steps;
+          next.volume = Math.max(0, Math.min(1, target * t));
+          prev.volume = Math.max(0, fromPrev * (1 - t));
+          if (i >= steps) {
+            clearHtmlFade();
+            next.volume = target;
+            prev.volume = 0;
+            try { prev.pause(); } catch (_) {}
+          }
+        }, (HTML_CROSSFADE * 1000) / steps);
+      } else {
+        if (prev && prev !== next) {
+          try { prev.pause(); } catch (_) {}
+          prev.volume = 0;
+        }
+        if (fadeIn) {
+          next.volume = 0;
+          fadeHtmlTo(next, target, 0.45);
+        } else {
+          next.volume = target;
+        }
+      }
+      return true;
+    }
+
+    function setBgmTrack(name, fade) {
+      if (name !== 'calm' && name !== 'nightfall') name = 'calm';
+      if (!bgmWanted) { htmlTrackName = name; return; }
+      if (htmlUsing || (!htmlFailed && ensureHtmlTracks())) {
+        if (htmlTrackName === name && htmlUsing) {
+          applyHtmlVolumes(true);
+          return;
+        }
+        if (playHtmlTrack(name, false, fade !== false)) {
+          stopBgmSchedulerOnly();
+          return;
+        }
+      }
+      // procedural has no separate tracks — keep playing if already
+      htmlTrackName = name;
     }
 
     // Original "Moonlit Meadow" — G major cozy night walk (NOT Nintendo melodies)
@@ -311,7 +502,14 @@
         try { await ctxA.resume(); } catch (_) {}
       }
       unlocked = true;
-      if (bgmWanted && !bgmPlaying) startBgm(true);
+      ensureHtmlTracks();
+      if (bgmWanted && !bgmPlaying && !htmlUsing) startBgm(true);
+      else if (bgmWanted && htmlUsing) {
+        const a = htmlTracks[htmlTrackName];
+        if (a && a.paused) {
+          try { a.play().catch(() => {}); } catch (_) {}
+        }
+      }
     }
 
     function setMuted(m) {
@@ -474,11 +672,10 @@
       }
     }
 
-    function startBgm(restart) {
-      bgmWanted = true;
+    function startProceduralBgm(restart) {
       if (!ensure() || !unlocked) return;
       if (ctxA.state === 'suspended') {
-        ctxA.resume().then(() => { if (bgmWanted) startBgm(true); }).catch(() => {});
+        ctxA.resume().then(() => { if (bgmWanted) startProceduralBgm(true); }).catch(() => {});
         return;
       }
       if (bgmPlaying && !restart) return;
@@ -494,8 +691,22 @@
       bgmTimer = setInterval(schedulerTick, BGM_LOOKAHEAD * 1000);
     }
 
+    function startBgm(restart) {
+      bgmWanted = true;
+      if (!unlocked) return;
+      ensure();
+      // Prefer HTMLAudio tracks; fall back to procedural GB meadow loop.
+      if (!htmlFailed && ensureHtmlTracks()) {
+        stopBgmSchedulerOnly();
+        if (playHtmlTrack(htmlTrackName || 'calm', !!restart, true)) return;
+      }
+      stopAllHtml(false);
+      startProceduralBgm(restart);
+    }
+
     function stopBgm(fade) {
       bgmWanted = false;
+      stopAllHtml(!!fade);
       if (!ensure()) {
         stopBgmSchedulerOnly();
         return;
@@ -523,7 +734,7 @@
 
     return {
       unlock, toggleMute, setMuted, isMuted,
-      getMusicVol, getSfxVol, setMusicVol, setSfxVol, setBgmDucked,
+      getMusicVol, getSfxVol, setMusicVol, setSfxVol, setBgmDucked, setBgmTrack,
       shoot, hit, kill, xp, levelUp, hurt, death, win, click,
       startBgm, stopBgm,
     };
@@ -600,14 +811,41 @@
   window.addEventListener('keyup', e => { keys[e.code] = false; });
 
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-  if (isTouch) touchPad.classList.remove('hidden');
+  // Floating stick: hidden until the player first taps+drags on the playfield.
+  touchPad.classList.add('hidden');
+  let stickOrigin = { x: 0, y: 0 };
+  let stickTouchId = null;
+  const STICK_SIZE = () => Math.min(112, Math.max(72, Math.min(window.innerWidth, window.innerHeight) * 0.28));
 
-  function stickFromEvent(clientX, clientY) {
-    const rect = touchPad.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    let dx = clientX - cx, dy = clientY - cy;
-    const max = rect.width / 2 - 10;
+  function isHudUiTarget(t) {
+    if (!t || !t.closest) return false;
+    return !!(
+      t.closest('button') ||
+      t.closest('input') ||
+      t.closest('.panel') ||
+      t.closest('.card') ||
+      t.closest('.menu-audio') ||
+      t.closest('.hud-btns')
+    );
+  }
+
+  function showStickAt(clientX, clientY) {
+    const size = STICK_SIZE();
+    touchPad.style.width = size + 'px';
+    touchPad.style.height = size + 'px';
+    touchPad.style.left = clientX + 'px';
+    touchPad.style.top = clientY + 'px';
+    touchPad.style.bottom = 'auto';
+    touchPad.style.right = 'auto';
+    touchPad.classList.remove('hidden');
+    stickOrigin.x = clientX;
+    stickOrigin.y = clientY;
+  }
+
+  function stickFromOrigin(clientX, clientY) {
+    const size = touchPad.offsetWidth || STICK_SIZE();
+    const max = size / 2 - 10;
+    let dx = clientX - stickOrigin.x, dy = clientY - stickOrigin.y;
     const len = Math.hypot(dx, dy) || 1;
     if (len > max) { dx = dx / len * max; dy = dy / len * max; }
     stickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
@@ -617,17 +855,52 @@
   function resetStick() {
     touchVec.x = 0; touchVec.y = 0;
     stickKnob.style.transform = 'translate(-50%, -50%)';
+    touchPad.classList.add('hidden');
+    stickTouchId = null;
+    touchActive = false;
   }
-  touchPad.addEventListener('touchstart', e => {
-    e.preventDefault(); touchActive = true;
-    stickFromEvent(e.touches[0].clientX, e.touches[0].clientY);
-  }, { passive: false });
-  touchPad.addEventListener('touchmove', e => {
+
+  function onFloatTouchStart(e) {
+    if (state !== 'PLAYING') return;
+    if (stickTouchId != null) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    if (isHudUiTarget(e.target)) return;
+    stickTouchId = t.identifier;
+    touchActive = true;
+    showStickAt(t.clientX, t.clientY);
+    stickFromOrigin(t.clientX, t.clientY);
     e.preventDefault();
-    stickFromEvent(e.touches[0].clientX, e.touches[0].clientY);
-  }, { passive: false });
-  touchPad.addEventListener('touchend', e => { e.preventDefault(); touchActive = false; resetStick(); });
-  touchPad.addEventListener('touchcancel', () => { touchActive = false; resetStick(); });
+  }
+  function onFloatTouchMove(e) {
+    if (stickTouchId == null) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (t.identifier === stickTouchId) {
+        stickFromOrigin(t.clientX, t.clientY);
+        e.preventDefault();
+        break;
+      }
+    }
+  }
+  function onFloatTouchEnd(e) {
+    if (stickTouchId == null) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === stickTouchId) {
+        resetStick();
+        e.preventDefault();
+        break;
+      }
+    }
+  }
+
+  const stageEl = document.getElementById('stage');
+  if (isTouch && stageEl) {
+    stageEl.addEventListener('touchstart', onFloatTouchStart, { passive: false });
+    stageEl.addEventListener('touchmove', onFloatTouchMove, { passive: false });
+    stageEl.addEventListener('touchend', onFloatTouchEnd, { passive: false });
+    stageEl.addEventListener('touchcancel', onFloatTouchEnd, { passive: false });
+  }
 
   el.playBtn.addEventListener('click', () => {
     AudioFX.unlock();
@@ -809,12 +1082,93 @@
     yellow: { mid: '#f0d060', dark: '#c9a030', hi: '#fff0b0', spot: '#e0b840' },
     purple: { mid: '#c0a0e8', dark: '#8a6cbc', hi: '#e8d8ff', spot: '#a888d8' },
   };
+  // Pink-Mint Monarch (draft C): pink jelly, mint frothy rim, gold crown + purple gems, cute-tough face.
+  // Procedural pixel frames matching makeSlimeFrames style — not the concept PNG.
+  function makeMonarchFrames(size = 48) {
+    const pink = { mid: '#f5a0c0', dark: '#c06090', hi: '#ffe8f2', deep: '#a04070', spot: '#e878a8' };
+    const mint = { mid: '#7dcea0', dark: '#4a9a6e', hi: '#c8f5d8', foam: '#a8e8c0' };
+    const frames = [];
+    const stretches = [
+      { sy: 0, sh: 0 },
+      { sy: -1, sh: 2 },
+      { sy: 1, sh: -2 },
+      { sy: 0, sh: 1 },
+    ];
+    for (const st of stretches) {
+      frames.push(makeSprite(size + 10, size + 14, (g, w, h) => {
+        const crownH = 10;
+        const baseY = crownH + 2 + st.sy;
+        const bh = size - 4 + st.sh;
+        const bw = size - 2 - Math.floor(st.sh * 0.5);
+        const bx = Math.floor((w - bw) / 2);
+        const mid = Math.floor(bh / 2);
+        // pink jelly body
+        for (let y = 0; y < bh; y++) {
+          const t = Math.abs(y - mid) / (mid || 1);
+          const inset = Math.floor(t * t * (bw / 3.2));
+          const col = y > bh * 0.72 ? pink.dark : (y < bh * 0.22 ? pink.hi : pink.mid);
+          fillRect(g, bx + inset, baseY + y, bw - inset * 2, 1, col);
+        }
+        // deeper belly shade
+        fillRect(g, bx + 4, baseY + bh - 6, bw - 8, 3, pink.deep);
+        // glossy highlights
+        fillRect(g, bx + Math.floor(bw * 0.18), baseY + 3, Math.max(3, Math.floor(bw * 0.22)), 3, pink.hi);
+        fillRect(g, bx + Math.floor(bw * 0.62), baseY + 5, Math.max(2, Math.floor(bw * 0.12)), 2, '#fff5fa');
+        px(g, bx + Math.floor(bw * 0.7), baseY + Math.floor(bh * 0.4), pink.spot, 2);
+        // mint frothy base rim + side bubbles
+        const foamY = baseY + bh - 5;
+        fillRect(g, bx + 1, foamY, bw - 2, 4, mint.mid);
+        fillRect(g, bx + 3, foamY + 2, bw - 6, 2, mint.dark);
+        for (let i = 0; i < 5; i++) {
+          const fx = bx + 2 + i * Math.floor((bw - 4) / 5);
+          px(g, fx, foamY - 1 - (i % 2), mint.foam, 2);
+          px(g, fx + 1, foamY + 1, mint.hi, 1);
+        }
+        fillRect(g, bx - 1, foamY - 2, 3, 3, mint.mid);
+        fillRect(g, bx + bw - 2, foamY - 2, 3, 3, mint.mid);
+        px(g, bx, foamY - 4, mint.foam, 2);
+        px(g, bx + bw - 1, foamY - 3, mint.hi, 2);
+        // cute-tough face: angled brows + purple eyes + small w mouth
+        const cx = Math.floor(w / 2);
+        const eyeY = baseY + Math.floor(bh * 0.38);
+        fillRect(g, cx - 9, eyeY - 2, 5, 2, '#2a1830'); // brow L
+        fillRect(g, cx + 4, eyeY - 2, 5, 2, '#2a1830'); // brow R
+        fillRect(g, cx - 8, eyeY, 4, 4, '#6a3a9a');
+        fillRect(g, cx + 4, eyeY, 4, 4, '#6a3a9a');
+        px(g, cx - 7, eyeY + 1, '#ffffff');
+        px(g, cx + 5, eyeY + 1, '#ffffff');
+        px(g, cx - 6, eyeY + 2, '#1a1020');
+        px(g, cx + 6, eyeY + 2, '#1a1020');
+        // w mouth
+        px(g, cx - 2, eyeY + 8, '#1a1020');
+        px(g, cx - 1, eyeY + 9, '#1a1020');
+        px(g, cx, eyeY + 8, '#1a1020');
+        px(g, cx + 1, eyeY + 9, '#1a1020');
+        px(g, cx + 2, eyeY + 8, '#1a1020');
+        // gold crown with purple gems
+        fillRect(g, cx - 8, 3, 16, 5, '#e8c84a');
+        fillRect(g, cx - 8, 2, 3, 4, '#e8c84a');
+        fillRect(g, cx - 1, 0, 3, 5, '#f0e070');
+        fillRect(g, cx + 5, 2, 3, 4, '#e8c84a');
+        fillRect(g, cx - 7, 5, 14, 2, '#c9a030');
+        px(g, cx, 1, '#a855f7', 2);
+        px(g, cx - 6, 4, '#a855f7');
+        px(g, cx + 6, 4, '#a855f7');
+        px(g, cx + 1, 0, '#d4a0ff');
+        // soft ground shadow
+        fillRect(g, bx + 4, baseY + bh, bw - 8, 2, 'rgba(0,0,0,0.28)');
+      }));
+    }
+    return frames;
+  }
+
   const slimeFrames = {
     mint: makeSlimeFrames(slimePalettes.mint, 16),
     pink: makeSlimeFrames(slimePalettes.pink, 16),
     yellow: makeSlimeFrames(slimePalettes.yellow, 16),
     purple: makeSlimeFrames(slimePalettes.purple, 16),
     king: makeSlimeFrames(slimePalettes.mint, 22, true),
+    monarch: makeMonarchFrames(48),
   };
 
   const projSprite = makeSprite(6, 6, (g) => {
@@ -876,6 +1230,7 @@
   // ---------- Game state ----------
   let state = 'MENU';
   let player, enemies, projectiles, gems, particles;
+  let dmgNums = [];
   let obstacles = [];
   let cam = { x: 0, y: 0 };
   let timeAlive = 0;
@@ -885,6 +1240,8 @@
   let animT = 0;
   let flashHurt = 0;
   let menuPulse = 0;
+  let bossSpawned = false;
+  let bossAlive = false;
 
   const UPGRADE_DEFS = [
     { id: 'dmg', name: 'Sharp Spark', desc: '+25% projectile damage', apply: p => { p.damage = Math.round(p.damage * 1.25); } },
@@ -1039,11 +1396,16 @@
     projectiles = [];
     gems = [];
     particles = [];
+    dmgNums = [];
     timeAlive = 0;
     spawnTimer = 0.5;
     killCount = 0;
     flashHurt = 0;
+    bossSpawned = false;
+    bossAlive = false;
+    resetStick();
     AudioFX.setBgmDucked(false);
+    AudioFX.setBgmTrack('calm', false);
     state = 'PLAYING';
     showOnly('hud');
     syncHud();
@@ -1053,7 +1415,10 @@
 
   function goMenu() {
     AudioFX.setBgmDucked(false);
+    AudioFX.setBgmTrack('calm', false);
     AudioFX.stopBgm(true);
+    bossAlive = false;
+    resetStick();
     state = 'MENU';
     showOnly('menu');
   }
@@ -1122,6 +1487,53 @@
 
   function spawnBurst(n) {
     for (let i = 0; i < n; i++) spawnSlime(false);
+  }
+
+  function spawnMonarchBoss() {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 260 + Math.random() * 80;
+    let x = player.x + Math.cos(ang) * dist;
+    let y = player.y + Math.sin(ang) * dist;
+    x = Math.max(80, Math.min(WORLD_W - 80, x));
+    y = Math.max(80, Math.min(WORLD_H - 80, y));
+    const spawnR = 36;
+    for (let tries = 0; tries < 10 && overlapsObstacle(x, y, spawnR); tries++) {
+      const a2 = Math.random() * Math.PI * 2;
+      const d2 = dist + tries * 30;
+      x = Math.max(80, Math.min(WORLD_W - 80, player.x + Math.cos(a2) * d2));
+      y = Math.max(80, Math.min(WORLD_H - 80, player.y + Math.sin(a2) * d2));
+    }
+    const hp = 900 + timeAlive * 2.5;
+    enemies.push({
+      x, y,
+      r: 36,
+      color: 'monarch',
+      hp, maxHp: hp,
+      speed: 28 + Math.random() * 4,
+      damage: 28,
+      frame: 0,
+      frameT: 0,
+      xp: 40,
+      isKing: false,
+      isBoss: true,
+    });
+    bossAlive = true;
+    AudioFX.setBgmTrack('nightfall', true);
+    addParticles(x, y, '#f5a0c0', 18);
+    addParticles(x, y - 20, '#e8c84a', 10);
+  }
+
+  function spawnDmgNum(x, y, amount) {
+    const n = Math.round(amount);
+    if (n <= 0) return;
+    dmgNums.push({
+      x: x + (Math.random() * 10 - 5),
+      y: y - 6,
+      text: String(n),
+      life: 0.75,
+      maxLife: 0.75,
+      vy: -38 - Math.random() * 12,
+    });
   }
 
   // ---------- Combat ----------
@@ -1269,6 +1681,11 @@
       player.fireCd = player.fireCdMax;
     }
 
+    if (!bossSpawned && timeAlive >= BOSS_SPAWN_AT) {
+      bossSpawned = true;
+      spawnMonarchBoss();
+    }
+
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
       const density = 1 + Math.floor(timeAlive / 20);
@@ -1276,7 +1693,15 @@
       spawnBurst(n);
       const interval = Math.max(0.55, 1.8 - timeAlive * 0.008);
       spawnTimer = interval;
-      if (enemies.length > 120) enemies.splice(0, enemies.length - 120);
+      if (enemies.length > 120) {
+        // Prefer dropping non-boss fodder so the Monarch is never culled.
+        let need = enemies.length - 120;
+        for (let i = 0; i < enemies.length && need > 0; ) {
+          if (enemies[i].isBoss) { i++; continue; }
+          enemies.splice(i, 1);
+          need--;
+        }
+      }
     }
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -1291,6 +1716,7 @@
         if (dx * dx + dy * dy < (e.r + 4) ** 2) {
           e.hp -= p.damage;
           p.hit.add(e);
+          spawnDmgNum(e.x, e.y - e.r, p.damage);
           addParticles(p.x, p.y, '#ffe8a0', 4);
           AudioFX.hit();
           if (p.pierce <= 0) { projectiles.splice(i, 1); break; }
@@ -1305,8 +1731,16 @@
       if (e.frameT > 0.18) { e.frameT = 0; e.frame = (e.frame + 1) % 4; }
 
       if (e.hp <= 0) {
+        const wasBoss = !!e.isBoss;
         dropGem(e.x, e.y, e.xp);
-        addParticles(e.x, e.y, slimePalettes[e.color === 'king' ? 'mint' : e.color].mid, 10);
+        const palKey = e.color === 'king' ? 'mint' : (e.color === 'monarch' ? 'pink' : e.color);
+        addParticles(e.x, e.y, slimePalettes[palKey].mid, wasBoss ? 22 : 10);
+        if (wasBoss) {
+          addParticles(e.x, e.y - 16, '#e8c84a', 14);
+          addParticles(e.x, e.y, '#7dcea0', 12);
+          bossAlive = false;
+          AudioFX.setBgmTrack('calm', true);
+        }
         enemies.splice(i, 1);
         killCount++;
         AudioFX.kill();
@@ -1365,6 +1799,13 @@
       p.vx *= 0.92; p.vy *= 0.92;
       p.life -= dt;
       if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    for (let i = dmgNums.length - 1; i >= 0; i--) {
+      const d = dmgNums[i];
+      d.y += d.vy * dt;
+      d.life -= dt;
+      if (d.life <= 0) dmgNums.splice(i, 1);
     }
 
     syncHud();
@@ -1445,12 +1886,14 @@
       const ox = fr.width / 2;
       const oy = fr.height - 2;
       blit(ctx, fr, s.x - ox, s.y - oy);
-      if (e.isKing || e.hp < e.maxHp) {
-        const bw = e.isKing ? 22 : 14;
+      if (e.isBoss || e.isKing || e.hp < e.maxHp) {
+        const bw = e.isBoss ? 42 : (e.isKing ? 22 : 14);
+        const bh = e.isBoss ? 5 : 3;
+        const by = s.y - oy - (e.isBoss ? 8 : 5);
         ctx.fillStyle = '#1a1020';
-        ctx.fillRect(s.x - bw / 2, s.y - oy - 5, bw, 3);
-        ctx.fillStyle = e.isKing ? '#e8c84a' : '#7dcea0';
-        ctx.fillRect(s.x - bw / 2, s.y - oy - 5, bw * (e.hp / e.maxHp), 3);
+        ctx.fillRect(s.x - bw / 2, by, bw, bh);
+        ctx.fillStyle = e.isBoss ? '#f5a0c0' : (e.isKing ? '#e8c84a' : '#7dcea0');
+        ctx.fillRect(s.x - bw / 2, by, bw * Math.max(0, e.hp / e.maxHp), bh);
       }
     }
   }
@@ -1463,18 +1906,26 @@
 
   function drawOneEnemy(e) {
     const s = worldToScreen(e.x, e.y);
-    if (s.x < -40 || s.y < -40 || s.x > W + 40 || s.y > H + 40) return;
+    if (s.x < -80 || s.y < -80 || s.x > W + 80 || s.y > H + 80) return;
     const frames = slimeFrames[e.color] || slimeFrames.mint;
     const fr = frames[e.frame % frames.length];
     const ox = fr.width / 2;
     const oy = fr.height - 2;
     blit(ctx, fr, s.x - ox, s.y - oy);
-    if (e.isKing || e.hp < e.maxHp) {
-      const bw = e.isKing ? 22 : 14;
+    if (e.isBoss || e.isKing || e.hp < e.maxHp) {
+      const bw = e.isBoss ? 42 : (e.isKing ? 22 : 14);
+      const bh = e.isBoss ? 5 : 3;
+      const by = s.y - oy - (e.isBoss ? 8 : 5);
       ctx.fillStyle = '#1a1020';
-      ctx.fillRect(s.x - bw / 2, s.y - oy - 5, bw, 3);
-      ctx.fillStyle = e.isKing ? '#e8c84a' : '#7dcea0';
-      ctx.fillRect(s.x - bw / 2, s.y - oy - 5, bw * (e.hp / e.maxHp), 3);
+      ctx.fillRect(s.x - bw / 2, by, bw, bh);
+      ctx.fillStyle = e.isBoss ? '#f5a0c0' : (e.isKing ? '#e8c84a' : '#7dcea0');
+      ctx.fillRect(s.x - bw / 2, by, bw * Math.max(0, e.hp / e.maxHp), bh);
+      if (e.isBoss) {
+        ctx.fillStyle = 'rgba(255,232,240,0.85)';
+        ctx.font = 'bold 8px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Monarch', s.x, by - 5);
+      }
     }
   }
 
@@ -1511,6 +1962,24 @@
       ctx.fillRect(s.x, s.y, p.size, p.size);
       ctx.globalAlpha = 1;
     }
+  }
+
+  function drawDmgNums() {
+    ctx.save();
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const d of dmgNums) {
+      const s = worldToScreen(d.x, d.y);
+      const a = Math.max(0, Math.min(1, d.life / d.maxLife));
+      ctx.globalAlpha = a * 0.75;
+      ctx.fillStyle = 'rgba(20, 12, 28, 0.35)';
+      ctx.fillText(d.text, s.x + 1, s.y + 1);
+      ctx.fillStyle = '#ffe8f0';
+      ctx.fillText(d.text, s.x, s.y);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   function drawMenuBackdrop() {
@@ -1550,6 +2019,7 @@
         drawSortedWorld();
         drawProjectiles(); // sparks pass through foliage; drawn above for readability
         drawParticles();
+        drawDmgNums();
         if (flashHurt > 0) {
           ctx.fillStyle = `rgba(180,20,60,${flashHurt * 0.45})`;
           ctx.fillRect(0, 0, W, H);
@@ -1585,7 +2055,9 @@
     getCanvas: () => canvas,
     VERSION,
     VIEW_ZOOM,
+    BOSS_SPAWN_AT,
     togglePause,
+    spawnMonarchBoss,
     forcePlaySeconds: (sec) => {
       startGame();
       for (let i = 0; i < 25; i++) spawnSlime(true);
@@ -1605,6 +2077,10 @@
         frame: 0, frameT: 0, xp: 12, isKing: true,
       });
       timeAlive = sec;
+      if (sec >= BOSS_SPAWN_AT && !bossSpawned) {
+        bossSpawned = true;
+        spawnMonarchBoss();
+      }
       player.level = 3;
       player.xp = 4;
       cam.x = player.x - viewWorldW() / 2;

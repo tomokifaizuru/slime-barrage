@@ -1,4 +1,4 @@
-# Slime Barrage v0.7
+# Slime Barrage v0.8
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across a night grass field while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and survive **5:00**.
 
@@ -37,7 +37,15 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot, Pierce Shot, Snack Break (heal).
 
+## What’s new in v0.8
+
+- **Pink-Mint Monarch mid-run boss** (~2:30 into the 5:00 timer): huge procedural pink jelly with mint froth rim + gold crown (draft C look, not a PNG blit). High HP, bigger radius, stronger contact damage, slow chase. Boss HP bar labeled above it. King slime stays as the small crowned elite.
+- **BGM tracks**: early/normal = Moonlit calm (`assets/bgm-moonlit-calm.mp3`); while the Monarch lives = Nightfall (`assets/bgm-nightfall.mp3`) with crossfade. Falls back to the procedural GB meadow loop if HTMLAudio fails. Mute + Music/SFX sliders still apply.
+- **Soft damage numbers**: semi-transparent floating digits on hit (fade + rise).
+- **Floating virtual stick**: on phones the stick appears where you first press-drag on the playfield; hides on finger-up. Pause/mute HUD taps are ignored. WASD still works on desktop.
+
 ## What’s new in v0.7
+
 
 - **Trees & bushes** scatter across the 2400×2400 meadow (seeded/deterministic layout, clear radius around spawn). Procedural pixel sprites; solid trunk/bush-core circles block the player and slimes. Projectiles pass through foliage. Props Y-sort with entities so you walk in front of / behind them.
 
@@ -77,8 +85,8 @@ Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP)
 ```
 index.html   — shell + HTML overlays + favicons
 style.css    — contain layout, title border, volume rows, crisp UI, touch stick
-game.js      — game + procedural sprites (incl. trees/bushes) + SFX + BGM + zoom + pause + volumes
-assets/      — favicons, art references
+game.js      — game + procedural sprites (trees/bushes + Monarch boss) + SFX + HTML/procedural BGM + zoom + pause + volumes + dmg nums + floating stick
+assets/      — favicons, art references, bgm-moonlit-calm.mp3, bgm-nightfall.mp3
 README.md
 preview-v02.png / preview-v05-phone.png / preview-v06-phone.png
 ```
@@ -88,7 +96,6 @@ Sprites are drawn procedurally in canvas (hoodie girl + mint/pink/yellow/purple 
 ## Known limits (later)
 
 - Single weapon type (spark projectiles)
-- No map props / obstacles
 - Enemy AI is chase-only
 - No save / meta progression
 - Win timer fixed at 5 minutes

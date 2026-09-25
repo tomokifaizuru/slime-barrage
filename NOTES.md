@@ -1,0 +1,70 @@
+# Slime Barrage — Battle/Trance Preview
+
+**File:** `moonlit-nights-inspired-preview.mp3`  
+**BPM:** 175  
+**Key:** A minor (with E-phrygian color / Bb flashes)  
+**Duration:** ~87.7 s (56 bars + FluidSynth release tail; body ~76.8 s)  
+**Palette:** FluidR3 GM — Synth Bass 1, Saw Lead, Square Lead, Warm Pad, Crystal arp, Synth Brass stabs, Channel 10 drums
+
+## Vibe
+Fast driving trance/eurobeat-ish battle energy: rolling 16th crystal arps, punchy synth bass, staccato saw lead hook, 4-on-floor with breakbeat-ish climax sections. Built for a mobile bullet-hell drop — intense but loopable-friendly.
+
+## Structure
+| Section    | Bars  | Feel |
+|------------|-------|------|
+| Intro      | 0–7   | Filtered arp + kick tease → snare roll into drop |
+| Main       | 8–23  | Full groove, arp + lead hook + brass stabs |
+| Breakdown  | 24–27 | Sparse pad/arp, snare build |
+| Climax     | 28–51 | Hotter lead/arp, alternating 4-on-floor / breakish drums |
+| Loop tail  | 52–55 | Main-groove phrase end (loops cleanly back toward main) |
+
+## Originality
+Original notes and hooks only. Inspired by *Touhou-energy feel* (fast arps, bright trance drive) — **not** a recreation or cover of Night of Nights, any ZUN/Touhou melody, or Hololive audio. No sampled audio.
+
+## Tech
+- Compose: `compose_slime_barrage.py` → `slime-barrage-preview.mid` (MIDIUtil)
+- Render: `fluidsynth -ni FluidR3_GM.sf2 … -F …wav -r 44100`
+- Export: `ffmpeg -codec:a libmp3lame -qscale:a 2`
+
+---
+
+# Slime Barrage — Calm Early/Normal Remix
+
+**Files:** `moonlit-nights-calm-preview.mp3` / `.wav`  
+**Script:** `compose_slime_barrage_calm.py` (sibling; battle version untouched)  
+**BPM:** 148 (vs battle 175)  
+**Key:** A minor (same E-phrygian color / Bb flashes as battle theme)  
+**Duration:** ~88.6 s (48 bars + FluidSynth release tail; body ~77.8 s)  
+**Sample rate:** 44100 Hz stereo  
+**Palette:** FluidR3 GM — Synth Bass 1 (softer), Saw Lead (lower vel / longer tails), Warm Pad (more present), thin Crystal arp, soft pad chord hits (no brass), Square echo (quieter), light Channel 10 drums
+
+## Vibe
+Early-game meadow remix of the same theme family: recognizable hooks + crystal arp motifs, but softer kick, sparse hats, no breakbeat climax, pad-forward, gentler builds. Game-like mid-tempo walk, not lullaby.
+
+## Structure
+| Section    | Bars  | Feel |
+|------------|-------|------|
+| Intro      | 0–7   | Soft pad + thin arp, kick tease (no snare-roll drop) |
+| Main       | 8–23  | Soft 4-on-floor, lead hook at reduced velocity, thin arp |
+| Bridge     | 24–27 | Pad-forward, sparse arp, gentle half-note snare lift |
+| Soft lift  | 28–43 | Slightly brighter (same hooks) — not boss-drop intensity |
+| Loop tail  | 44–47 | Softer main-groove phrase for clean loop back |
+
+## Originality
+Same original notes/hooks as battle preview — **not** Night of Nights / ZUN / Hololive. No sampled audio.
+
+## Tech
+- Compose: `compose_slime_barrage_calm.py` → `moonlit-nights-calm-preview.mid`
+- Render: `fluidsynth -ni FluidR3_GM.sf2 … -F …wav -r 44100`
+- Normalize: `ffmpeg -af volume=4.0dB` (max ~−12.6 dB after)
+- Export: `ffmpeg -codec:a libmp3lame -qscale:a 2`
+
+
+---
+
+# v0.8 ship notes (2026-09-26)
+
+- Boss look locked: Pink-Mint Monarch (draft C) — procedural frames in `makeMonarchFrames`, concept PNG is reference only.
+- BGM: calm early = `assets/bgm-moonlit-calm.mp3`; boss = `assets/bgm-nightfall.mp3`; procedural fallback if HTMLAudio fails.
+- Mid-run boss at `BOSS_SPAWN_AT = 150` (once per run). Nightfall while alive, calm after defeat/end.
+- Floating stick + soft damage numbers.
