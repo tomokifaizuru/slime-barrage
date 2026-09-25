@@ -20,7 +20,7 @@ html, body {
   background: #000;
 }
 
-/* Sized by JS (cover-fill; may be non-integer CSS px). Overflow clips crop. */
+/* Sized by JS (contain; fractional OK). Overflow only clips rare tiny-cover. */
 #gameBox {
   position: relative;
   width: 480px;
@@ -44,14 +44,14 @@ html, body {
 
 #ui {
   position: absolute;
-  /* Inset to the visible cover window (JS sets --ui-pad-*) so HUD/menu stay on-screen */
+  /* Pads only when covering/cropping (JS); else 0 so UI fills the contain box */
   left: var(--ui-pad-x, 0px);
   top: var(--ui-pad-y, 0px);
   right: var(--ui-pad-x, 0px);
   bottom: var(--ui-pad-y, 0px);
   pointer-events: none;
   z-index: 4;
-  /* Base font scales with game box (JS sets --ui-scale) */
+  /* Comfortable UI scale from JS (clamped; not raw cover zoom) */
   font-size: calc(10px * var(--ui-scale, 1));
 }
 
@@ -148,9 +148,9 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.45em;
+  gap: 0.35em;
   text-align: center;
-  padding: 3% 4%;
+  padding: 2% 3%;
   background: rgba(8, 12, 22, 0.42);
   overflow: auto;
 }
@@ -168,7 +168,8 @@ html, body {
 }
 .title .logo {
   display: block;
-  width: min(92%, calc(24 * 10px * var(--ui-scale, 1)));
+  /* Cap so menu isn't one giant image on phones (85vw / ~320px) */
+  width: min(92%, 85vw, 320px, calc(24 * 10px * var(--ui-scale, 1)));
   max-width: 100%;
   height: auto;
   image-rendering: pixelated;
@@ -264,18 +265,18 @@ html, body {
 
 .cards {
   display: flex;
-  gap: 0.7em;
+  gap: 0.5em;
   justify-content: center;
   flex-wrap: nowrap;
   width: 100%;
   max-width: 100%;
   pointer-events: auto;
-  padding: 0 2%;
+  padding: 0 1%;
 }
 .card {
   flex: 1 1 0;
-  max-width: 14em;
-  min-height: 9em;
+  max-width: min(14em, 32%);
+  min-height: 7.5em;
   background: #1a2230;
   border: 2px solid #c0a0e8;
   border-radius: 0.55em;
@@ -328,13 +329,13 @@ html, body {
   margin-top: 0.3em;
 }
 
-/* ---------- Touch stick ---------- */
+/* ---------- Touch stick (fixed px — not tied to --ui-scale) ---------- */
 #touchPad {
   position: absolute;
-  left: 24px;
-  bottom: 24px;
-  width: 120px;
-  height: 120px;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  width: min(112px, 28vw);
+  height: min(112px, 28vw);
   pointer-events: auto;
   z-index: 5;
 }
@@ -347,7 +348,8 @@ html, body {
   position: relative;
 }
 #stickKnob {
-  width: 48px; height: 48px;
+  width: 40%; height: 40%;
+  max-width: 44px; max-height: 44px;
   border-radius: 50%;
   background: rgba(255,180,220,0.55);
   border: 2px solid rgba(255,255,255,0.5);
@@ -355,4 +357,16 @@ html, body {
   left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+/* Portrait: slightly tighter HUD / panel text so the 16:9 strip stays readable */
+@media (orientation: portrait) and (max-width: 520px) {
+  #ui { font-size: calc(9.5px * var(--ui-scale, 1)); }
+  .panel { gap: 0.28em; padding: 1.5% 2.5%; }
+  .subtitle { margin-bottom: 0.2em; }
+  .hint { font-size: 0.88em; line-height: 1.25; }
+  .btn { font-size: 1.1em; padding: 0.45em 1.35em; }
+  .card { min-height: 6.5em; padding: 0.5em 0.4em; }
+  .bar-wrap { width: 11em; }
+  .xp-wrap { width: 11em; }
 }

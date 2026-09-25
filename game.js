@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v0.4
+ * Slime Barrage v0.5
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * Procedural Web Audio SFX + original GB-inspired BGM (no copyrighted audio).
@@ -11,7 +11,7 @@
   const W = 480, H = 270;
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME = 180; // 3 minutes
-  const VERSION = 'v0.4';
+  const VERSION = 'v0.5';
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -40,33 +40,70 @@
     endStats: document.getElementById('endStats'),
   };
 
-  // Cover-fill CSS size (crops edges); canvas stays 480×270 + pixelated.
-  // Portrait fills the phone with no letterbars; landscape also covers when
-  // viewport aspect ≠ 480/270. Integer scale snapped when it still covers.
-  // --ui-pad-* insets #ui to the visible window so HUD/menu are not cropped.
+  // Contain CSS size; canvas stays 480×270 + pixelated.
+  // Portrait: width-fit (fill phone width, letterbox top/bottom) — no cover-crop.
+  // Landscape: integer contain when it uses the viewport well; else fractional
+  // contain. Tiny cover only when crop would be < ~4%.
+  // --ui-scale is a *comfortable* clamp of display scale (not raw cover zoom).
+  // --ui-pad-* only when actually cropping so HUD/menu stay on-screen.
   function fitCanvas() {
     const vw = window.innerWidth || document.documentElement.clientWidth || W;
     const vh = window.innerHeight || document.documentElement.clientHeight || H;
     const isPortrait = vh > vw;
-    const aspectDiff = Math.abs(vw / vh - W / H);
-    // Cover at least in portrait; also cover in landscape when contain would letterbox.
-    const useCover = isPortrait || aspectDiff > 0.02;
     let scale;
-    if (useCover) {
-      scale = Math.max(vw / W, vh / H);
-      const snapped = Math.ceil(scale - 1e-9);
-      // Prefer integer when nearly already covering at that integer
-      if (snapped > 0 && snapped - scale < 0.08) scale = snapped;
+    let covering = false;
+
+    if (isPortrait) {
+      // Width-fit contain: full 480 playfield width, black bars top/bottom OK.
+      scale = vw / W;
     } else {
-      scale = Math.max(1, Math.floor(Math.min(vw / W, vh / H)));
+      const containScale = Math.min(vw / W, vh / H);
+      const intScale = Math.max(1, Math.floor(containScale + 1e-9));
+      const intUsage = Math.min((W * intScale) / vw, (H * intScale) / vh);
+      // Prefer integer when it already fills most of the screen, else fractional.
+      if (intScale >= 1 && (intUsage >= 0.85 || containScale - intScale < 0.12)) {
+        scale = Math.min(intScale, containScale);
+      } else {
+        scale = containScale;
+      }
+      // Tiny cover only — avoid aggressive crop zoom.
+      const coverScale = Math.max(vw / W, vh / H);
+      const cropFrac = Math.max(
+        Math.max(0, (W * coverScale - vw) / (W * coverScale)),
+        Math.max(0, (H * coverScale - vh) / (H * coverScale))
+      );
+      if (cropFrac > 0 && cropFrac < 0.04 && coverScale > scale) {
+        scale = coverScale;
+        covering = true;
+        const snapped = Math.round(coverScale);
+        if (snapped > 0 && Math.abs(snapped - coverScale) < 0.05) {
+          const cropSnap = Math.max(
+            Math.max(0, (W * snapped - vw) / (W * snapped)),
+            Math.max(0, (H * snapped - vh) / (H * snapped))
+          );
+          if (cropSnap < 0.04) scale = snapped;
+        }
+      }
     }
+
+    if (!(scale > 0) || !isFinite(scale)) scale = 1;
+
     const boxW = W * scale;
     const boxH = H * scale;
     gameBox.style.width = boxW + 'px';
     gameBox.style.height = boxH + 'px';
-    const padX = Math.max(0, (boxW - vw) / 2);
-    const padY = Math.max(0, (boxH - vh) / 2);
-    uiRoot.style.setProperty('--ui-scale', String(scale));
+
+    const padX = (covering || boxW > vw + 0.5) ? Math.max(0, (boxW - vw) / 2) : 0;
+    const padY = (covering || boxH > vh + 0.5) ? Math.max(0, (boxH - vh) / 2) : 0;
+
+    // Comfortable UI: base on display scale, clamp so phones aren't tiny or giant.
+    const shortSide = Math.min(vw, vh);
+    let uiMax = 3;
+    if (shortSide < 500) uiMax = 2;       // phones
+    else if (shortSide < 900) uiMax = 2.5; // tablets
+    const uiScale = Math.min(uiMax, Math.max(1, scale));
+
+    uiRoot.style.setProperty('--ui-scale', String(uiScale));
     uiRoot.style.setProperty('--ui-pad-x', padX + 'px');
     uiRoot.style.setProperty('--ui-pad-y', padY + 'px');
   }

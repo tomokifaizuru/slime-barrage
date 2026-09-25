@@ -1,4 +1,4 @@
-# Slime Barrage v0.4
+# Slime Barrage v0.5
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across a night grass field while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and survive **3:00**.
 
@@ -35,10 +35,15 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot, Pierce Shot, Snack Break (heal).
 
+## What’s new in v0.5
+
+- **Phone layout — width-fit + calmer UI (less cramped)**: portrait uses width-fit contain (`scale = vw/480`) so the full 480×270 playfield is visible with small letterbars top/bottom instead of cover-crop zoom. `--ui-scale` is clamped for readable (not giant) HUD/menu/logo; logo capped at ~85vw / 320px.
+- Landscape keeps integer contain when it fits well, otherwise fractional contain; tiny cover only if crop &lt; ~4%.
+
 ## What’s new in v0.4
 
 - **Neon blast logo** on the main menu (hero title art) plus favicon / apple-touch-icon (square crop of the crowned slime). Pixel-crisp `image-rendering`; responsive max-width for phones.
-- **Portrait cover-fill**: canvas stays **480×270** with `image-rendering: pixelated`; CSS size scales up to cover the viewport (crops left/right in portrait). Black letterbars gone when playing vertically; HTML `#ui` overlays still track `#gameBox`.
+- **Portrait cover-fill** (superseded in v0.5): canvas stayed **480×270** with cover scaling that cropped left/right in portrait.
 
 ## What’s new in v0.3
 
@@ -54,11 +59,11 @@ Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP)
 
 ```
 index.html   — shell + HTML overlays + favicons
-style.css    — cover-fill layout, logo, crisp UI, touch stick
-game.js      — game + procedural sprites + SFX + BGM + fitCanvas cover
+style.css    — contain layout, logo cap, crisp UI, touch stick
+game.js      — game + procedural sprites + SFX + BGM + fitCanvas width-fit
 assets/      — logo, favicons, art references
 README.md
-preview-v02.png
+preview-v02.png / preview-v05-phone.png
 ```
 
 Sprites are drawn procedurally in canvas (hoodie girl + mint/pink/yellow/purple slimes + crowned king slime) for a tiny footprint.
