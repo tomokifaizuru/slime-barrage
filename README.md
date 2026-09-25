@@ -59,3 +59,7 @@ Sprites are drawn procedurally in canvas (hoodie girl + mint/pink/yellow/purple 
 ## License / IP
 
 Original characters and title for this project. Do not ship Hololive / Holocure assets with it.
+
+## Play online
+
+https://tomokifaizuru.github.io/slime-barrage/

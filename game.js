@@ -92,7 +92,19 @@
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
     drawFn(g, w, h);
-    return c;
+    // Snapshot to a fresh canvas so drawImage always gets a real HTMLCanvasElement
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const og = out.getContext('2d');
+    og.imageSmoothingEnabled = false;
+    og.drawImage(c, 0, 0);
+    out._pixelW = w; out._pixelH = h;
+    return out;
+  }
+  function blit(ctx, spr, x, y, dw, dh) {
+    if (!spr || typeof spr !== 'object' || !spr.width) return;
+    if (dw != null && dh != null) ctx.drawImage(spr, x, y, dw, dh);
+    else ctx.drawImage(spr, x, y);
   }
   function px(g, x, y, col, s = 1) {
     g.fillStyle = col;
@@ -695,10 +707,10 @@
       ctx.translate(s.x, s.y);
       ctx.scale(-1, 1);
       if (player.invuln > 0 && (animT * 20 | 0) % 2 === 0) ctx.globalAlpha = 0.45;
-      ctx.drawImage(spr, -10, -22);
+      blit(ctx, spr, -10, -22);
     } else {
       if (player.invuln > 0 && (animT * 20 | 0) % 2 === 0) ctx.globalAlpha = 0.45;
-      ctx.drawImage(spr, s.x - 10, s.y - 22);
+      blit(ctx, spr, s.x - 10, s.y - 22);
     }
     ctx.restore();
   }
@@ -711,7 +723,7 @@
       const fr = frames[e.frame % frames.length];
       const ox = fr.width / 2;
       const oy = fr.height - 2;
-      ctx.drawImage(fr, s.x - ox, s.y - oy);
+      blit(ctx, fr, s.x - ox, s.y - oy);
       // tiny hp bar for kings / hurt
       if (e.isKing || e.hp < e.maxHp) {
         const bw = e.isKing ? 22 : 14;
@@ -726,14 +738,14 @@
   function drawProjectiles() {
     for (const p of projectiles) {
       const s = worldToScreen(p.x, p.y);
-      ctx.drawImage(projSprite, s.x - 3, s.y - 3);
+      blit(ctx, projSprite, s.x - 3, s.y - 3);
     }
   }
 
   function drawGems() {
     for (const g of gems) {
       const s = worldToScreen(g.x, g.y + Math.sin(g.bob) * 2);
-      ctx.drawImage(gemSprite, s.x - 4, s.y - 4);
+      blit(ctx, gemSprite, s.x - 4, s.y - 4);
     }
   }
 
@@ -809,11 +821,11 @@
       const x = 30 + (i * 47) % (W - 40);
       const y = 40 + Math.sin(animT * 1.5 + i) * 8 + (i % 3) * 60;
       ctx.globalAlpha = 0.55;
-      ctx.drawImage(fr, x, y);
+      blit(ctx, fr, x, y);
       ctx.globalAlpha = 1;
     }
     // hero showcase
-    ctx.drawImage(heroFront, W / 2 - 20, 48, 40, 56);
+    blit(ctx, heroFront, W / 2 - 20, 48, 40, 56);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#f7a0c0';
@@ -950,14 +962,36 @@
     startGame,
     getState: () => state,
     getCanvas: () => canvas,
+    spriteInfo: () => ({
+      hero: [heroFront && heroFront.tagName, heroFront && heroFront.width],
+      mint0: [slimeFrames.mint[0] && slimeFrames.mint[0].tagName, slimeFrames.mint[0] && slimeFrames.mint[0].width],
+      proj: [projSprite && projSprite.tagName, projSprite && projSprite.width],
+    }),
     forcePlaySeconds: (sec) => {
-      // advance simulated play for screenshots
       startGame();
-      // spawn a bunch so screenshot looks busy
       for (let i = 0; i < 25; i++) spawnSlime(true);
+      // scatter a few near player for a lively shot
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        enemies.push({
+          x: player.x + Math.cos(a) * (60 + (i % 3) * 28),
+          y: player.y + Math.sin(a) * (60 + (i % 3) * 28),
+          r: 10, color: ['mint','pink','yellow','purple'][i % 4],
+          hp: 20, maxHp: 20, speed: 30, damage: 8,
+          frame: i % 4, frameT: 0, xp: 2, isKing: false,
+        });
+      }
+      // one king nearby
+      enemies.push({
+        x: player.x + 90, y: player.y - 40, r: 16, color: 'king',
+        hp: 100, maxHp: 100, speed: 25, damage: 15,
+        frame: 0, frameT: 0, xp: 12, isKing: true,
+      });
       timeAlive = sec;
       player.level = 3;
       player.xp = 4;
+      cam.x = player.x - W / 2;
+      cam.y = player.y - H / 2;
     },
   };
 })();
