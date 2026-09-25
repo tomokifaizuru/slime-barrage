@@ -1,7 +1,8 @@
 /**
- * Slime Barrage v0.1
+ * Slime Barrage v0.2
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
- * Vanilla Canvas 2D auto-survivor.
+ * Canvas world sprites + HTML/CSS overlays for crisp UI text.
+ * Procedural Web Audio SFX (no copyrighted audio).
  */
 (() => {
   'use strict';
@@ -9,22 +10,157 @@
   // ---------- Config ----------
   const W = 480, H = 270;
   const WORLD_W = 2400, WORLD_H = 2400;
-  const PIXEL = 1;
   const WIN_TIME = 180; // 3 minutes
-  const VERSION = 'v0.1';
+  const VERSION = 'v0.2';
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
 
-  // Scale canvas to integer multiple of internal res
+  const gameBox = document.getElementById('gameBox');
+  const uiRoot = document.getElementById('ui');
+  const el = {
+    menu: document.getElementById('menu'),
+    hud: document.getElementById('hud'),
+    levelup: document.getElementById('levelup'),
+    end: document.getElementById('end'),
+    playBtn: document.getElementById('playBtn'),
+    menuBtn: document.getElementById('menuBtn'),
+    muteBtnMenu: document.getElementById('muteBtnMenu'),
+    muteBtnHud: document.getElementById('muteBtnHud'),
+    hpFill: document.getElementById('hpFill'),
+    hpText: document.getElementById('hpText'),
+    xpFill: document.getElementById('xpFill'),
+    xpText: document.getElementById('xpText'),
+    timer: document.getElementById('timer'),
+    kills: document.getElementById('kills'),
+    cards: document.getElementById('cards'),
+    levelupTitle: document.getElementById('levelupTitle'),
+    endTitle: document.getElementById('endTitle'),
+    endStats: document.getElementById('endStats'),
+  };
+
+  // Integer CSS scale + letterbox; UI fonts scale with the game box
   function fitCanvas() {
-    const scale = Math.max(1, Math.floor(Math.min(window.innerWidth / W, window.innerHeight / H)));
-    canvas.style.width = (W * scale) + 'px';
-    canvas.style.height = (H * scale) + 'px';
+    const scale = Math.max(1, Math.floor(Math.min(
+      (window.innerWidth || document.documentElement.clientWidth) / W,
+      (window.innerHeight || document.documentElement.clientHeight) / H
+    )));
+    gameBox.style.width = (W * scale) + 'px';
+    gameBox.style.height = (H * scale) + 'px';
+    uiRoot.style.setProperty('--ui-scale', String(scale));
   }
   window.addEventListener('resize', fitCanvas);
   fitCanvas();
+
+  // ---------- Audio (procedural Web Audio API) ----------
+  const AudioFX = (() => {
+    let ctxA = null;
+    let master = null;
+    let muted = localStorage.getItem('slimeBarrageMuted') === '1';
+    let unlocked = false;
+
+    function ensure() {
+      if (ctxA) return true;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      ctxA = new AC();
+      master = ctxA.createGain();
+      master.gain.value = muted ? 0 : 0.35;
+      master.connect(ctxA.destination);
+      return true;
+    }
+
+    async function unlock() {
+      if (!ensure()) return;
+      if (ctxA.state === 'suspended') {
+        try { await ctxA.resume(); } catch (_) {}
+      }
+      unlocked = true;
+    }
+
+    function setMuted(m) {
+      muted = !!m;
+      localStorage.setItem('slimeBarrageMuted', muted ? '1' : '0');
+      if (master) master.gain.value = muted ? 0 : 0.35;
+      syncMuteUI();
+    }
+    function toggleMute() { setMuted(!muted); }
+    function isMuted() { return muted; }
+
+    function tone(freq, dur, type, vol, slideTo) {
+      if (!ensure() || muted || !unlocked) return;
+      const t0 = ctxA.currentTime;
+      const o = ctxA.createOscillator();
+      const g = ctxA.createGain();
+      o.type = type || 'square';
+      o.frequency.setValueAtTime(freq, t0);
+      if (slideTo != null) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol || 0.2, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(master);
+      o.start(t0); o.stop(t0 + dur + 0.02);
+    }
+
+    function noise(dur, vol, filterFreq) {
+      if (!ensure() || muted || !unlocked) return;
+      const t0 = ctxA.currentTime;
+      const n = Math.floor(ctxA.sampleRate * dur);
+      const buf = ctxA.createBuffer(1, n, ctxA.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const src = ctxA.createBufferSource();
+      src.buffer = buf;
+      const g = ctxA.createGain();
+      g.gain.setValueAtTime(vol || 0.15, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      if (filterFreq) {
+        const f = ctxA.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = filterFreq;
+        src.connect(f); f.connect(g);
+      } else {
+        src.connect(g);
+      }
+      g.connect(master);
+      src.start(t0); src.stop(t0 + dur + 0.02);
+    }
+
+    function shoot() { tone(880, 0.06, 'square', 0.08, 420); }
+    function hit() { tone(220, 0.05, 'triangle', 0.12, 110); noise(0.04, 0.06, 800); }
+    function kill() { tone(160, 0.08, 'sawtooth', 0.1, 60); noise(0.07, 0.08, 600); }
+    function xp() { tone(990, 0.05, 'sine', 0.05, 1320); }
+    function levelUp() {
+      const notes = [523, 659, 784, 1046];
+      notes.forEach((f, i) => {
+        setTimeout(() => tone(f, 0.12, 'triangle', 0.12), i * 70);
+      });
+    }
+    function hurt() { tone(140, 0.15, 'sawtooth', 0.18, 70); noise(0.1, 0.1, 400); }
+    function death() {
+      tone(200, 0.35, 'sawtooth', 0.2, 40);
+      setTimeout(() => noise(0.25, 0.12, 300), 80);
+    }
+    function win() {
+      [523, 659, 784, 1046, 784, 1046].forEach((f, i) => {
+        setTimeout(() => tone(f, 0.14, 'triangle', 0.14), i * 90);
+      });
+    }
+    function click() { tone(660, 0.04, 'square', 0.07); }
+
+    return { unlock, toggleMute, setMuted, isMuted, shoot, hit, kill, xp, levelUp, hurt, death, win, click };
+  })();
+
+  function syncMuteUI() {
+    const label = AudioFX.isMuted() ? '🔇 Muted' : '🔊 Sound';
+    const short = AudioFX.isMuted() ? '🔇' : '🔊';
+    el.muteBtnMenu.textContent = label;
+    el.muteBtnMenu.classList.toggle('muted', AudioFX.isMuted());
+    el.muteBtnHud.textContent = short;
+    el.muteBtnHud.classList.toggle('muted', AudioFX.isMuted());
+  }
+  syncMuteUI();
 
   // ---------- Input ----------
   const keys = Object.create(null);
@@ -36,17 +172,21 @@
   window.addEventListener('keydown', e => {
     keys[e.code] = true;
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
-    if (state === 'MENU' && (e.code === 'Enter' || e.code === 'Space')) startGame();
-    if ((state === 'GAMEOVER' || state === 'WIN') && (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyR')) goMenu();
+    if (state === 'MENU' && (e.code === 'Enter' || e.code === 'Space')) {
+      AudioFX.unlock(); AudioFX.click(); startGame();
+    }
+    if ((state === 'GAMEOVER' || state === 'WIN') && (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyR')) {
+      AudioFX.click(); goMenu();
+    }
     if (state === 'LEVELUP') {
       if (e.code === 'Digit1' || e.code === 'Numpad1') pickUpgrade(0);
       if (e.code === 'Digit2' || e.code === 'Numpad2') pickUpgrade(1);
       if (e.code === 'Digit3' || e.code === 'Numpad3') pickUpgrade(2);
     }
+    if (e.code === 'KeyM') { AudioFX.unlock(); AudioFX.toggleMute(); }
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-  // Detect touch devices
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) touchPad.classList.remove('hidden');
 
@@ -77,13 +217,14 @@
   touchPad.addEventListener('touchend', e => { e.preventDefault(); touchActive = false; resetStick(); });
   touchPad.addEventListener('touchcancel', () => { touchActive = false; resetStick(); });
 
-  // Mouse click for menus / upgrades
-  canvas.addEventListener('pointerdown', e => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = (e.clientX - rect.left) * (W / rect.width);
-    const sy = (e.clientY - rect.top) * (H / rect.height);
-    handleClick(sx, sy);
+  el.playBtn.addEventListener('click', () => {
+    AudioFX.unlock();
+    AudioFX.click();
+    startGame();
   });
+  el.menuBtn.addEventListener('click', () => { AudioFX.click(); goMenu(); });
+  el.muteBtnMenu.addEventListener('click', () => { AudioFX.unlock(); AudioFX.toggleMute(); });
+  el.muteBtnHud.addEventListener('click', () => { AudioFX.unlock(); AudioFX.toggleMute(); });
 
   // ---------- Pixel sprite helpers ----------
   function makeSprite(w, h, drawFn) {
@@ -92,7 +233,6 @@
     const g = c.getContext('2d');
     g.imageSmoothingEnabled = false;
     drawFn(g, w, h);
-    // Snapshot to a fresh canvas so drawImage always gets a real HTMLCanvasElement
     const out = document.createElement('canvas');
     out.width = w; out.height = h;
     const og = out.getContext('2d');
@@ -101,10 +241,10 @@
     out._pixelW = w; out._pixelH = h;
     return out;
   }
-  function blit(ctx, spr, x, y, dw, dh) {
+  function blit(c, spr, x, y, dw, dh) {
     if (!spr || typeof spr !== 'object' || !spr.width) return;
-    if (dw != null && dh != null) ctx.drawImage(spr, x, y, dw, dh);
-    else ctx.drawImage(spr, x, y);
+    if (dw != null && dh != null) c.drawImage(spr, x, y, dw, dh);
+    else c.drawImage(spr, x, y);
   }
   function px(g, x, y, col, s = 1) {
     g.fillStyle = col;
@@ -115,96 +255,68 @@
     g.fillRect(x, y, w, h);
   }
 
-  // Hero: pink bob, lavender hoodie, denim shorts, white sneakers (front + side)
   function drawHeroFront(g) {
-    // backpack
     fillRect(g, 3, 10, 3, 8, '#6b4f9a');
     fillRect(g, 14, 10, 3, 8, '#6b4f9a');
-    // legs / denim
     fillRect(g, 6, 18, 3, 5, '#3a4a78');
     fillRect(g, 11, 18, 3, 5, '#3a4a78');
-    // fray holes
     px(g, 7, 20, '#c8d4f0'); px(g, 12, 19, '#c8d4f0');
-    // socks
     fillRect(g, 6, 23, 3, 2, '#f5f5f5');
     fillRect(g, 11, 23, 3, 2, '#f5f5f5');
-    // sneakers
     fillRect(g, 5, 25, 4, 2, '#ffffff');
     fillRect(g, 10, 25, 4, 2, '#ffffff');
     px(g, 5, 25, '#f7a8c8'); px(g, 10, 25, '#f7a8c8');
-    // hoodie body
     fillRect(g, 5, 10, 10, 9, '#c4b0e8');
-    fillRect(g, 6, 14, 8, 4, '#b39ddb'); // pocket
-    // drawstrings
+    fillRect(g, 6, 14, 8, 4, '#b39ddb');
     px(g, 8, 11, '#ffffff'); px(g, 8, 12, '#ffffff');
     px(g, 11, 11, '#ffffff'); px(g, 11, 12, '#ffffff');
-    // arms
     fillRect(g, 3, 11, 2, 6, '#c4b0e8');
     fillRect(g, 15, 11, 2, 6, '#c4b0e8');
-    // hands
     fillRect(g, 3, 16, 2, 2, '#f0c4b0');
     fillRect(g, 15, 16, 2, 2, '#f0c4b0');
-    // neck
     fillRect(g, 8, 8, 4, 2, '#f0c4b0');
-    // head
     fillRect(g, 6, 2, 8, 7, '#f0c4b0');
-    // pink hair bob
     fillRect(g, 5, 1, 10, 4, '#f7a0c0');
     fillRect(g, 4, 3, 2, 5, '#f7a0c0');
     fillRect(g, 14, 3, 2, 5, '#f7a0c0');
-    // white tips
     fillRect(g, 4, 7, 2, 1, '#ffe8f0');
     fillRect(g, 14, 7, 2, 1, '#ffe8f0');
     fillRect(g, 6, 1, 2, 1, '#ffe8f0');
-    // bangs
     fillRect(g, 7, 3, 2, 2, '#f7a0c0');
     fillRect(g, 11, 3, 2, 2, '#f7a0c0');
-    // x clip
     px(g, 14, 3, '#ffffff'); px(g, 15, 4, '#ffffff');
     px(g, 15, 3, '#ffffff'); px(g, 14, 4, '#ffffff');
-    // eyes (purple)
     fillRect(g, 7, 5, 2, 2, '#7b4fb8');
     fillRect(g, 11, 5, 2, 2, '#7b4fb8');
     px(g, 7, 5, '#ffffff'); px(g, 11, 5, '#ffffff');
-    // smile
     px(g, 9, 8, '#d08090'); px(g, 10, 8, '#d08090');
   }
 
   function drawHeroSide(g) {
-    // backpack
     fillRect(g, 4, 10, 5, 8, '#6b4f9a');
-    // denim
     fillRect(g, 9, 18, 4, 5, '#3a4a78');
     px(g, 10, 20, '#c8d4f0');
     fillRect(g, 9, 23, 4, 2, '#f5f5f5');
     fillRect(g, 8, 25, 5, 2, '#ffffff');
     px(g, 8, 25, '#f7a8c8');
-    // hoodie
     fillRect(g, 7, 10, 8, 9, '#c4b0e8');
     fillRect(g, 8, 14, 5, 3, '#b39ddb');
-    // arm forward
     fillRect(g, 13, 12, 4, 2, '#c4b0e8');
     fillRect(g, 16, 12, 2, 2, '#f0c4b0');
-    // head
     fillRect(g, 8, 2, 7, 7, '#f0c4b0');
     fillRect(g, 7, 1, 9, 4, '#f7a0c0');
     fillRect(g, 6, 3, 2, 5, '#f7a0c0');
     fillRect(g, 6, 7, 2, 1, '#ffe8f0');
     fillRect(g, 14, 1, 2, 1, '#ffe8f0');
-    // eye
     fillRect(g, 12, 5, 2, 2, '#7b4fb8');
     px(g, 12, 5, '#ffffff');
-    // clip
     px(g, 7, 3, '#ffffff'); px(g, 8, 4, '#ffffff');
   }
 
   const heroFront = makeSprite(20, 28, (g) => drawHeroFront(g));
   const heroSide = makeSprite(20, 28, (g) => drawHeroSide(g));
-
-  // Walking bob variants (leg offset)
   const heroWalkA = makeSprite(20, 28, (g) => {
     drawHeroFront(g);
-    // shift one leg
     fillRect(g, 6, 18, 3, 5, '#0d1520');
     fillRect(g, 5, 19, 3, 5, '#3a4a78');
     fillRect(g, 5, 24, 3, 2, '#f5f5f5');
@@ -218,46 +330,37 @@
     fillRect(g, 12, 26, 4, 2, '#ffffff');
   });
 
-  // Slime palette factory
   function makeSlimeFrames(colors, size = 16, crowned = false) {
     const frames = [];
     const stretches = [
-      { sy: 0, sh: 0 },   // neutral
-      { sy: -1, sh: 1 },  // stretch up
-      { sy: 1, sh: -2 },  // squash
+      { sy: 0, sh: 0 },
+      { sy: -1, sh: 1 },
+      { sy: 1, sh: -2 },
       { sy: 0, sh: 0 },
     ];
     for (const st of stretches) {
       frames.push(makeSprite(size + (crowned ? 8 : 2), size + (crowned ? 10 : 2), (g, w, h) => {
         const baseY = (crowned ? 8 : 1) + st.sy;
         const bh = size - 2 + st.sh;
-        const bw = size - 2 - st.sh; // squash wider
+        const bw = size - 2 - st.sh;
         const bx = Math.floor((w - bw) / 2);
-        // body ellipse via stacked rects
         const mid = Math.floor(bh / 2);
         for (let y = 0; y < bh; y++) {
           const t = Math.abs(y - mid) / (mid || 1);
           const inset = Math.floor(t * t * (bw / 3));
-          const yy = baseY + y;
-          fillRect(g, bx + inset, yy, bw - inset * 2, 1, colors.mid);
+          fillRect(g, bx + inset, baseY + y, bw - inset * 2, 1, colors.mid);
         }
-        // outline-ish darker bottom
         fillRect(g, bx + 2, baseY + bh - 2, bw - 4, 2, colors.dark);
-        // highlight
         fillRect(g, bx + Math.floor(bw * 0.25), baseY + 2, Math.max(2, Math.floor(bw * 0.3)), 2, colors.hi);
-        // spot
         px(g, bx + Math.floor(bw * 0.6), baseY + Math.floor(bh * 0.45), colors.spot, 2);
-        // face
         const eyeY = baseY + Math.floor(bh * 0.4);
         const cx = Math.floor(w / 2);
         fillRect(g, cx - 4, eyeY, 2, 2, '#1a1020');
         fillRect(g, cx + 2, eyeY, 2, 2, '#1a1020');
-        // smile
         px(g, cx - 1, eyeY + 3, '#1a1020');
         px(g, cx, eyeY + 4, '#1a1020');
         px(g, cx + 1, eyeY + 3, '#1a1020');
         if (crowned) {
-          // gold crown
           fillRect(g, cx - 5, 2, 10, 4, '#e8c84a');
           fillRect(g, cx - 5, 1, 2, 3, '#e8c84a');
           fillRect(g, cx - 1, 0, 2, 3, '#e8c84a');
@@ -265,7 +368,6 @@
           px(g, cx - 4, 3, '#a855f7');
           px(g, cx, 2, '#a855f7');
           px(g, cx + 4, 3, '#a855f7');
-          // leafy sprouts
           fillRect(g, bx - 1, baseY + 2, 2, 3, '#6bcf7a');
           fillRect(g, bx + bw - 1, baseY + 2, 2, 3, '#6bcf7a');
         }
@@ -288,14 +390,11 @@
     king: makeSlimeFrames(slimePalettes.mint, 22, true),
   };
 
-  // Projectile spark
   const projSprite = makeSprite(6, 6, (g) => {
     fillRect(g, 2, 0, 2, 6, '#ffe8a0');
     fillRect(g, 0, 2, 6, 2, '#ffe8a0');
     fillRect(g, 2, 2, 2, 2, '#ffffff');
   });
-
-  // XP gem
   const gemSprite = makeSprite(8, 8, (g) => {
     fillRect(g, 3, 0, 2, 8, '#7cf0ff');
     fillRect(g, 0, 3, 8, 2, '#7cf0ff');
@@ -304,7 +403,7 @@
   });
 
   // ---------- Game state ----------
-  let state = 'MENU'; // MENU PLAYING LEVELUP GAMEOVER WIN
+  let state = 'MENU';
   let player, enemies, projectiles, gems, particles;
   let cam = { x: 0, y: 0 };
   let timeAlive = 0;
@@ -344,6 +443,16 @@
     };
   }
 
+  function showOnly(panel) {
+    el.menu.classList.toggle('hidden', panel !== 'menu');
+    el.hud.classList.toggle('hidden', panel !== 'hud' && panel !== 'levelup' && panel !== 'end');
+    // Keep HUD visible under levelup/end for context, but hide on menu
+    if (panel === 'levelup' || panel === 'end') el.hud.classList.remove('hidden');
+    if (panel === 'menu') el.hud.classList.add('hidden');
+    el.levelup.classList.toggle('hidden', panel !== 'levelup');
+    el.end.classList.toggle('hidden', panel !== 'end');
+  }
+
   function startGame() {
     player = resetPlayer();
     enemies = [];
@@ -355,13 +464,38 @@
     killCount = 0;
     flashHurt = 0;
     state = 'PLAYING';
+    showOnly('hud');
+    syncHud();
     for (let i = 0; i < 8; i++) spawnSlime(true);
   }
 
-  function goMenu() { state = 'MENU'; }
+  function goMenu() {
+    state = 'MENU';
+    showOnly('menu');
+  }
 
   function xpForLevel(lv) {
     return Math.floor(8 + (lv - 1) * 5 + Math.pow(lv, 1.35));
+  }
+
+  function formatTime(t) {
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  function syncHud() {
+    if (!player) return;
+    const hpPct = Math.max(0, Math.min(1, player.hp / player.maxHp)) * 100;
+    el.hpFill.style.width = hpPct + '%';
+    el.hpFill.classList.toggle('low', player.hp / player.maxHp < 0.3);
+    el.hpText.textContent = 'HP ' + Math.ceil(player.hp) + '/' + player.maxHp;
+    const xpPct = Math.max(0, Math.min(1, player.xp / player.xpNext)) * 100;
+    el.xpFill.style.width = xpPct + '%';
+    el.xpText.textContent = 'Lv ' + player.level;
+    const remain = Math.max(0, WIN_TIME - timeAlive);
+    el.timer.textContent = formatTime(remain);
+    el.kills.textContent = 'Kills ' + killCount;
   }
 
   // ---------- Spawning ----------
@@ -371,9 +505,7 @@
     const isKing = t > 45 && Math.random() < 0.06 + Math.min(0.08, t / 600);
     const color = isKing ? 'king' : colors[(Math.random() * colors.length) | 0];
     const ang = Math.random() * Math.PI * 2;
-    const dist = far
-      ? 220 + Math.random() * 180
-      : 280 + Math.random() * 220;
+    const dist = far ? 220 + Math.random() * 180 : 280 + Math.random() * 220;
     let x = player.x + Math.cos(ang) * dist;
     let y = player.y + Math.sin(ang) * dist;
     x = Math.max(40, Math.min(WORLD_W - 40, x));
@@ -427,6 +559,7 @@
       });
     }
     player.facing = Math.cos(baseAng) >= 0 ? 1 : -1;
+    AudioFX.shoot();
   }
 
   function dropGem(x, y, value) {
@@ -446,65 +579,70 @@
 
   function offerLevelUp() {
     const pool = UPGRADE_DEFS.slice();
-    // shuffle
     for (let i = pool.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     upgradeChoices = pool.slice(0, 3);
     state = 'LEVELUP';
+    AudioFX.levelUp();
+    el.levelupTitle.textContent = 'LEVEL UP!  Lv ' + player.level;
+    el.cards.innerHTML = '';
+    upgradeChoices.forEach((u, i) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'card';
+      card.innerHTML =
+        '<span class="card-num">' + (i + 1) + '</span>' +
+        '<span class="card-name">' + u.name + '</span>' +
+        '<span class="card-desc">' + u.desc + '</span>';
+      card.addEventListener('click', () => pickUpgrade(i));
+      el.cards.appendChild(card);
+    });
+    showOnly('levelup');
+    syncHud();
   }
 
   function pickUpgrade(i) {
     if (state !== 'LEVELUP' || !upgradeChoices[i]) return;
+    AudioFX.click();
     upgradeChoices[i].apply(player);
     upgradeChoices = [];
     state = 'PLAYING';
+    showOnly('hud');
+    syncHud();
   }
 
-  function handleClick(sx, sy) {
-    if (state === 'MENU') {
-      // Play button approx
-      if (sx > W / 2 - 50 && sx < W / 2 + 50 && sy > H / 2 + 20 && sy < H / 2 + 48) startGame();
-      return;
-    }
-    if (state === 'LEVELUP') {
-      const cardW = 120, gap = 12;
-      const total = 3 * cardW + 2 * gap;
-      const startX = (W - total) / 2;
-      const cardY = 78;
-      for (let i = 0; i < 3; i++) {
-        const x = startX + i * (cardW + gap);
-        if (sx >= x && sx <= x + cardW && sy >= cardY && sy <= cardY + 110) {
-          pickUpgrade(i);
-          return;
-        }
-      }
-      return;
-    }
-    if (state === 'GAMEOVER' || state === 'WIN') {
-      goMenu();
-    }
+  function showEnd(won) {
+    state = won ? 'WIN' : 'GAMEOVER';
+    if (won) AudioFX.win(); else AudioFX.death();
+    el.endTitle.textContent = won ? 'YOU SURVIVED!' : 'GAME OVER';
+    el.endTitle.className = 'panel-title ' + (won ? 'win' : 'lose');
+    const score = killCount * 10 + Math.floor(timeAlive) * 2 + player.level * 25;
+    el.endStats.innerHTML =
+      '<div>Time  ' + formatTime(timeAlive) + '</div>' +
+      '<div>Kills  ' + killCount + '</div>' +
+      '<div>Level  ' + player.level + '</div>' +
+      '<div class="score">Score  ' + score + '</div>';
+    showOnly('end');
+    syncHud();
   }
 
   // ---------- Update ----------
   function update(dt) {
     animT += dt;
     menuPulse += dt;
-    if (state === 'MENU') return;
-    if (state === 'LEVELUP' || state === 'GAMEOVER' || state === 'WIN') return;
+    if (state === 'MENU' || state === 'LEVELUP' || state === 'GAMEOVER' || state === 'WIN') return;
 
     timeAlive += dt;
     if (flashHurt > 0) flashHurt -= dt;
     if (player.invuln > 0) player.invuln -= dt;
 
-    // Win check
     if (timeAlive >= WIN_TIME) {
-      state = 'WIN';
+      showEnd(true);
       return;
     }
 
-    // Movement
     let mx = 0, my = 0;
     if (keys['KeyW'] || keys['ArrowUp']) my -= 1;
     if (keys['KeyS'] || keys['ArrowDown']) my += 1;
@@ -524,20 +662,17 @@
     player.x = Math.max(20, Math.min(WORLD_W - 20, player.x));
     player.y = Math.max(20, Math.min(WORLD_H - 20, player.y));
 
-    // Camera
     cam.x = player.x - W / 2;
     cam.y = player.y - H / 2;
     cam.x = Math.max(0, Math.min(WORLD_W - W, cam.x));
     cam.y = Math.max(0, Math.min(WORLD_H - H, cam.y));
 
-    // Auto fire
     player.fireCd -= dt;
     if (player.fireCd <= 0) {
       fireAtNearest();
       player.fireCd = player.fireCdMax;
     }
 
-    // Spawn waves — ramp up
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
       const density = 1 + Math.floor(timeAlive / 20);
@@ -545,11 +680,9 @@
       spawnBurst(n);
       const interval = Math.max(0.55, 1.8 - timeAlive * 0.008);
       spawnTimer = interval;
-      // Cap enemies
       if (enemies.length > 120) enemies.splice(0, enemies.length - 120);
     }
 
-    // Projectiles
     for (let i = projectiles.length - 1; i >= 0; i--) {
       const p = projectiles[i];
       p.x += p.vx * dt;
@@ -563,13 +696,13 @@
           e.hp -= p.damage;
           p.hit.add(e);
           addParticles(p.x, p.y, '#ffe8a0', 4);
+          AudioFX.hit();
           if (p.pierce <= 0) { projectiles.splice(i, 1); break; }
           p.pierce--;
         }
       }
     }
 
-    // Enemies chase + contact
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
       e.frameT += dt;
@@ -580,6 +713,7 @@
         addParticles(e.x, e.y, slimePalettes[e.color === 'king' ? 'mint' : e.color].mid, 10);
         enemies.splice(i, 1);
         killCount++;
+        AudioFX.kill();
         continue;
       }
 
@@ -588,21 +722,20 @@
       e.x += (dx / d) * e.speed * dt;
       e.y += (dy / d) * e.speed * dt;
 
-      // Contact damage
       if (d < e.r + 8 && player.invuln <= 0) {
         player.hp -= e.damage;
         player.invuln = 0.7;
         flashHurt = 0.25;
         addParticles(player.x, player.y, '#ff6688', 8);
+        AudioFX.hurt();
         if (player.hp <= 0) {
           player.hp = 0;
-          state = 'GAMEOVER';
+          showEnd(false);
           return;
         }
       }
     }
 
-    // Gems
     for (let i = gems.length - 1; i >= 0; i--) {
       const g = gems[i];
       g.bob += dt * 4;
@@ -617,19 +750,18 @@
       if (d < 12) {
         player.xp += g.value;
         gems.splice(i, 1);
+        AudioFX.xp();
         while (player.xp >= player.xpNext) {
           player.xp -= player.xpNext;
           player.level++;
           player.xpNext = xpForLevel(player.level);
-          // small heal on level
           player.hp = Math.min(player.maxHp, player.hp + 8);
           offerLevelUp();
-          break; // one upgrade screen at a time
+          break;
         }
       }
     }
 
-    // Particles
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       p.x += p.vx * dt; p.y += p.vy * dt;
@@ -637,19 +769,18 @@
       p.life -= dt;
       if (p.life <= 0) particles.splice(i, 1);
     }
+
+    syncHud();
   }
 
-  // ---------- Draw ----------
+  // ---------- Draw (world only — UI is HTML) ----------
   function worldToScreen(x, y) {
     return { x: Math.round(x - cam.x), y: Math.round(y - cam.y) };
   }
 
   function drawNightGrass() {
-    // Base night field
     ctx.fillStyle = '#142018';
     ctx.fillRect(0, 0, W, H);
-
-    // Tiled grass tufts relative to camera
     const tile = 32;
     const ox = Math.floor(cam.x / tile);
     const oy = Math.floor(cam.y / tile);
@@ -659,37 +790,31 @@
         const wy = (oy + iy) * tile;
         const sx = wx - cam.x;
         const sy = wy - cam.y;
-        // pseudo-random from position
-        const h = ((wx * 73856093) ^ (wy * 19349663)) >>> 0;
-        // darker patches
-        if ((h & 7) === 0) {
+        const hsh = ((wx * 73856093) ^ (wy * 19349663)) >>> 0;
+        if ((hsh & 7) === 0) {
           ctx.fillStyle = '#101a14';
           ctx.fillRect(sx, sy, tile, tile);
         }
-        // grass blades
         ctx.fillStyle = '#1e3a28';
-        const n = 2 + (h & 3);
+        const n = 2 + (hsh & 3);
         for (let k = 0; k < n; k++) {
-          const gx = sx + ((h >> (k * 3)) & 28) + 2;
-          const gy = sy + ((h >> (k * 5)) & 24) + 4;
+          const gx = sx + ((hsh >> (k * 3)) & 28) + 2;
+          const gy = sy + ((hsh >> (k * 5)) & 24) + 4;
           ctx.fillRect(gx, gy, 1, 3);
           ctx.fillStyle = '#2a5a38';
           ctx.fillRect(gx, gy, 1, 2);
           ctx.fillStyle = '#1e3a28';
         }
-        // tiny flowers / dew
-        if ((h & 31) === 3) {
+        if ((hsh & 31) === 3) {
           ctx.fillStyle = '#6a8cff';
           ctx.fillRect(sx + 10, sy + 14, 2, 2);
         }
-        if ((h & 31) === 7) {
+        if ((hsh & 31) === 7) {
           ctx.fillStyle = '#c090ff';
           ctx.fillRect(sx + 18, sy + 8, 2, 2);
         }
       }
     }
-
-    // soft vignette via darker edges (cheap)
     ctx.fillStyle = 'rgba(5,8,16,0.35)';
     ctx.fillRect(0, 0, W, 16);
     ctx.fillRect(0, H - 16, W, 16);
@@ -701,7 +826,6 @@
     if (player.moving) {
       spr = ((player.walkFrame | 0) % 2 === 0) ? heroWalkA : heroWalkB;
     }
-    // use side when moving horizontally strongly — keep simple front/walk for top-down readability
     ctx.save();
     if (player.facing < 0) {
       ctx.translate(s.x, s.y);
@@ -724,7 +848,6 @@
       const ox = fr.width / 2;
       const oy = fr.height - 2;
       blit(ctx, fr, s.x - ox, s.y - oy);
-      // tiny hp bar for kings / hurt
       if (e.isKing || e.hp < e.maxHp) {
         const bw = e.isKing ? 22 : 14;
         ctx.fillStyle = '#1a1020';
@@ -759,61 +882,9 @@
     }
   }
 
-  function drawUI() {
-    // HP bar
-    ctx.fillStyle = 'rgba(10,14,22,0.7)';
-    ctx.fillRect(8, 8, 120, 14);
-    ctx.fillStyle = '#3a2030';
-    ctx.fillRect(10, 10, 116, 10);
-    const hpw = 116 * (player.hp / player.maxHp);
-    ctx.fillStyle = player.hp / player.maxHp < 0.3 ? '#ff5577' : '#f0a0c0';
-    ctx.fillRect(10, 10, hpw, 10);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '8px monospace';
-    ctx.fillText('HP ' + Math.ceil(player.hp) + '/' + player.maxHp, 12, 18);
-
-    // XP / level
-    ctx.fillStyle = 'rgba(10,14,22,0.7)';
-    ctx.fillRect(8, 26, 120, 10);
-    ctx.fillStyle = '#1a3040';
-    ctx.fillRect(10, 28, 116, 6);
-    ctx.fillStyle = '#7cf0ff';
-    ctx.fillRect(10, 28, 116 * Math.min(1, player.xp / player.xpNext), 6);
-    ctx.fillStyle = '#c8e8ff';
-    ctx.fillText('Lv ' + player.level, 132, 34);
-
-    // Timer
-    const remain = Math.max(0, WIN_TIME - timeAlive);
-    const m = Math.floor(remain / 60);
-    const sec = Math.floor(remain % 60);
-    const tstr = m + ':' + String(sec).padStart(2, '0');
-    ctx.fillStyle = 'rgba(10,14,22,0.7)';
-    const tw = 56;
-    ctx.fillRect(W / 2 - tw / 2, 8, tw, 16);
-    ctx.fillStyle = '#ffe8a0';
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(tstr, W / 2, 20);
-    ctx.textAlign = 'left';
-
-    // Kills
-    ctx.fillStyle = 'rgba(10,14,22,0.7)';
-    ctx.fillRect(W - 78, 8, 70, 16);
-    ctx.fillStyle = '#d0c0ff';
-    ctx.font = '8px monospace';
-    ctx.fillText('Kills ' + killCount, W - 72, 19);
-
-    if (flashHurt > 0) {
-      ctx.fillStyle = `rgba(180,20,60,${flashHurt * 0.45})`;
-      ctx.fillRect(0, 0, W, H);
-    }
-  }
-
-  function drawMenu() {
-    // night bg
+  function drawMenuBackdrop() {
     ctx.fillStyle = '#0c121c';
     ctx.fillRect(0, 0, W, H);
-    // decorative slimes
     const cols = ['mint', 'pink', 'yellow', 'purple'];
     for (let i = 0; i < 10; i++) {
       const c = cols[i % 4];
@@ -824,113 +895,12 @@
       blit(ctx, fr, x, y);
       ctx.globalAlpha = 1;
     }
-    // hero showcase
-    blit(ctx, heroFront, W / 2 - 20, 48, 40, 56);
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#f7a0c0';
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText('SLIME BARRAGE', W / 2, 36);
-
-    ctx.fillStyle = '#a090c8';
-    ctx.font = '9px monospace';
-    ctx.fillText('auto-survivor  ·  original IP', W / 2, 118);
-
-    // Play button
-    const pulse = 1 + Math.sin(menuPulse * 3) * 0.04;
-    const bw = 100 * pulse, bh = 28;
-    ctx.fillStyle = '#c4b0e8';
-    ctx.fillRect(W / 2 - bw / 2, H / 2 + 20, bw, bh);
-    ctx.fillStyle = '#2a1840';
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText('PLAY', W / 2, H / 2 + 38);
-
-    ctx.fillStyle = '#8090a8';
-    ctx.font = '8px monospace';
-    ctx.fillText(VERSION + '  ·  WASD / Arrows to move  ·  auto-fires', W / 2, H - 28);
-    ctx.fillText('Survive 3:00  ·  level up & pick upgrades', W / 2, H - 16);
-    ctx.textAlign = 'left';
-  }
-
-  function drawLevelUp() {
-    ctx.fillStyle = 'rgba(8,10,20,0.72)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffe8a0';
-    ctx.font = 'bold 14px monospace';
-    ctx.fillText('LEVEL UP!  Lv ' + player.level, W / 2, 36);
-    ctx.fillStyle = '#a0b0c8';
-    ctx.font = '8px monospace';
-    ctx.fillText('Pick an upgrade  (1 / 2 / 3 or click)', W / 2, 52);
-
-    const cardW = 120, gap = 12;
-    const total = 3 * cardW + 2 * gap;
-    const startX = (W - total) / 2;
-    const cardY = 78;
-    const accents = ['#f7a0c0', '#7dcea0', '#c0a0e8'];
-    for (let i = 0; i < 3; i++) {
-      const u = upgradeChoices[i];
-      const x = startX + i * (cardW + gap);
-      ctx.fillStyle = '#1a2230';
-      ctx.fillRect(x, cardY, cardW, 110);
-      ctx.strokeStyle = accents[i];
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x + 1, cardY + 1, cardW - 2, 108);
-      ctx.fillStyle = accents[i];
-      ctx.font = 'bold 10px monospace';
-      ctx.fillText((i + 1) + '. ' + u.name, x + cardW / 2, cardY + 28);
-      ctx.fillStyle = '#c8d0e0';
-      ctx.font = '8px monospace';
-      wrapText(u.desc, x + cardW / 2, cardY + 55, cardW - 16, 11);
-    }
-    ctx.textAlign = 'left';
-  }
-
-  function wrapText(text, x, y, maxW, lineH) {
-    const words = text.split(' ');
-    let line = '';
-    let yy = y;
-    for (const w of words) {
-      const test = line ? line + ' ' + w : w;
-      if (ctx.measureText(test).width > maxW) {
-        ctx.fillText(line, x, yy);
-        line = w;
-        yy += lineH;
-      } else line = test;
-    }
-    if (line) ctx.fillText(line, x, yy);
-  }
-
-  function drawEnd(won) {
-    ctx.fillStyle = 'rgba(8,10,20,0.78)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = won ? '#7dcea0' : '#f7a0c0';
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText(won ? 'YOU SURVIVED!' : 'GAME OVER', W / 2, 80);
-    ctx.fillStyle = '#e0e8ff';
-    ctx.font = '10px monospace';
-    const score = killCount * 10 + Math.floor(timeAlive) * 2 + player.level * 25;
-    ctx.fillText('Time  ' + formatTime(timeAlive), W / 2, 110);
-    ctx.fillText('Kills  ' + killCount, W / 2, 126);
-    ctx.fillText('Level  ' + player.level, W / 2, 142);
-    ctx.fillStyle = '#ffe8a0';
-    ctx.fillText('Score  ' + score, W / 2, 168);
-    ctx.fillStyle = '#a0b0c8';
-    ctx.font = '8px monospace';
-    ctx.fillText('Enter / click  —  back to menu', W / 2, 210);
-    ctx.textAlign = 'left';
-  }
-
-  function formatTime(t) {
-    const m = Math.floor(t / 60);
-    const s = Math.floor(t % 60);
-    return m + ':' + String(s).padStart(2, '0');
+    blit(ctx, heroFront, W / 2 - 20, 70, 40, 56);
   }
 
   function draw() {
     if (state === 'MENU') {
-      drawMenu();
+      drawMenuBackdrop();
       return;
     }
     drawNightGrass();
@@ -939,10 +909,10 @@
     drawProjectiles();
     drawPlayer();
     drawParticles();
-    drawUI();
-    if (state === 'LEVELUP') drawLevelUp();
-    if (state === 'GAMEOVER') drawEnd(false);
-    if (state === 'WIN') drawEnd(true);
+    if (flashHurt > 0) {
+      ctx.fillStyle = `rgba(180,20,60,${flashHurt * 0.45})`;
+      ctx.fillRect(0, 0, W, H);
+    }
   }
 
   // ---------- Loop ----------
@@ -957,20 +927,18 @@
   }
   requestAnimationFrame(frame);
 
-  // Auto-start helper for screenshot mode
+  // Init overlay state
+  showOnly('menu');
+
   window.__slimeBarrage = {
     startGame,
+    goMenu,
     getState: () => state,
     getCanvas: () => canvas,
-    spriteInfo: () => ({
-      hero: [heroFront && heroFront.tagName, heroFront && heroFront.width],
-      mint0: [slimeFrames.mint[0] && slimeFrames.mint[0].tagName, slimeFrames.mint[0] && slimeFrames.mint[0].width],
-      proj: [projSprite && projSprite.tagName, projSprite && projSprite.width],
-    }),
+    VERSION,
     forcePlaySeconds: (sec) => {
       startGame();
       for (let i = 0; i < 25; i++) spawnSlime(true);
-      // scatter a few near player for a lively shot
       for (let i = 0; i < 12; i++) {
         const a = (i / 12) * Math.PI * 2;
         enemies.push({
@@ -981,7 +949,6 @@
           frame: i % 4, frameT: 0, xp: 2, isKing: false,
         });
       }
-      // one king nearby
       enemies.push({
         x: player.x + 90, y: player.y - 40, r: 16, color: 'king',
         hp: 100, maxHp: 100, speed: 25, damage: 15,
@@ -992,6 +959,11 @@
       player.xp = 4;
       cam.x = player.x - W / 2;
       cam.y = player.y - H / 2;
+      syncHud();
+    },
+    showLevelUpDemo: () => {
+      if (state !== 'PLAYING') startGame();
+      offerLevelUp();
     },
   };
 })();

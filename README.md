@@ -1,4 +1,4 @@
-# Slime Barrage v0.1
+# Slime Barrage v0.2
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across a night grass field while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and survive **3:00**.
 
@@ -13,7 +13,7 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
    python3 -m http.server 8080
    # then visit http://localhost:8080
    ```
-3. Click **PLAY** (or press Enter / Space).
+3. Click **PLAY** (or press Enter / Space). Audio unlocks on that first gesture.
 
 ### Controls
 
@@ -21,8 +21,9 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 |-------|--------|
 | **WASD** or **Arrow keys** | Move |
 | *(automatic)* | Fire at nearest slime |
-| **1 / 2 / 3** or click | Pick level-up upgrade |
+| **1 / 2 / 3** or tap cards | Pick level-up upgrade |
 | **Enter / Space / R** | Confirm on menu / game over |
+| **M** or 🔊 button | Mute / unmute (saved) |
 | On-screen stick (touch) | Move on mobile |
 
 ### Goal
@@ -34,27 +35,32 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot, Pierce Shot, Snack Break (heal).
 
+## What’s new in v0.2
+
+- **Crisp UI text**: canvas keeps pixel world sprites at fixed 480×270 with integer CSS scale + `image-rendering: pixelated`; menus, HUD, and level-up cards are HTML/CSS overlays (system fonts, no upscaled 8px canvas text).
+- **Procedural SFX** via Web Audio API (shoot, hit, kill, XP, level-up, hurt, death, win, UI click). Mute toggle remembers preference in `localStorage`. No copyrighted Hololive/Holocure audio.
+
 ## Files
 
 ```
-index.html   — shell
-style.css    — layout + touch stick
-game.js      — game + procedural pixel sprites
+index.html   — shell + HTML overlays
+style.css    — letterbox layout, crisp UI, touch stick
+game.js      — game + procedural sprites + SFX
 assets/      — art references (not required at runtime)
 README.md
+preview-v02.png
 ```
 
 Sprites are drawn procedurally in canvas (hoodie girl + mint/pink/yellow/purple slimes + crowned king slime) for a tiny footprint.
 
-## v0.1 known limits (next version)
+## Known limits (later)
 
-- No sound / BGM yet
 - Single weapon type (spark projectiles)
 - No map props / obstacles
 - Enemy AI is chase-only
-- Touch pad is basic; no on-screen fire needed (auto)
 - No save / meta progression
 - Win timer fixed at 3 minutes
+- No BGM yet (SFX only)
 
 ## License / IP
 

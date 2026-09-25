@@ -4,16 +4,63 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Slime Barrage v0.1</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Slime Barrage v0.2</title>
+  <link rel="stylesheet" href="style.css?v=v02" />
 </head>
 <body>
-  <div id="wrap">
-    <canvas id="game" width="480" height="270"></canvas>
+  <div id="stage">
+    <div id="gameBox">
+      <canvas id="game" width="480" height="270"></canvas>
+      <div id="ui" aria-live="polite">
+        <div id="hud" class="hidden">
+          <div class="hud-left">
+            <div class="bar-wrap hp-wrap">
+              <div id="hpFill" class="bar-fill hp"></div>
+              <span id="hpText" class="bar-label">HP 100/100</span>
+            </div>
+            <div class="bar-wrap xp-wrap">
+              <div id="xpFill" class="bar-fill xp"></div>
+              <span id="xpText" class="bar-label">Lv 1</span>
+            </div>
+          </div>
+          <div class="hud-center">
+            <div id="timer" class="timer">3:00</div>
+          </div>
+          <div class="hud-right">
+            <div id="kills" class="kills">Kills 0</div>
+            <button type="button" id="muteBtnHud" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊</button>
+          </div>
+        </div>
+
+        <div id="menu" class="panel">
+          <h1 class="title">SLIME BARRAGE</h1>
+          <p class="subtitle">auto-survivor · original IP</p>
+          <button type="button" id="playBtn" class="btn primary">PLAY</button>
+          <div class="menu-audio">
+            <button type="button" id="muteBtnMenu" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
+          </div>
+          <p class="hint">v0.2 · WASD / Arrows to move · auto-fires</p>
+          <p class="hint">Survive 3:00 · level up &amp; pick upgrades</p>
+        </div>
+
+        <div id="levelup" class="panel dim hidden">
+          <h2 id="levelupTitle" class="panel-title">LEVEL UP!</h2>
+          <p class="panel-sub">Pick an upgrade (1 / 2 / 3 or tap)</p>
+          <div id="cards" class="cards"></div>
+        </div>
+
+        <div id="end" class="panel dim hidden">
+          <h2 id="endTitle" class="panel-title">GAME OVER</h2>
+          <div id="endStats" class="end-stats"></div>
+          <button type="button" id="menuBtn" class="btn">Back to menu</button>
+        </div>
+      </div>
+    </div>
+
     <div id="touchPad" class="hidden" aria-hidden="true">
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js"></script>
+  <script src="game.js?v=v02"></script>
 </body>
 </html>
