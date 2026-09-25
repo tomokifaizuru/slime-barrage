@@ -4,8 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Slime Barrage v0.3</title>
-  <link rel="stylesheet" href="style.css?v=v03" />
+  <meta name="apple-mobile-web-app-title" content="Slime Barrage" />
+  <title>Slime Barrage v0.4</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v04" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v04" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v04" />
+  <link rel="stylesheet" href="style.css?v=v04" />
 </head>
 <body>
   <div id="stage">
@@ -33,13 +37,23 @@
         </div>
 
         <div id="menu" class="panel">
-          <h1 class="title">SLIME BARRAGE</h1>
+          <h1 class="title">
+            <img
+              class="logo"
+              src="assets/logo-neon-blast.png?v=v04"
+              alt="Slime Barrage"
+              width="1280"
+              height="720"
+              decoding="async"
+            />
+            <span class="sr-only">SLIME BARRAGE</span>
+          </h1>
           <p class="subtitle">auto-survivor · original IP</p>
           <button type="button" id="playBtn" class="btn primary">PLAY</button>
           <div class="menu-audio">
             <button type="button" id="muteBtnMenu" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
           </div>
-          <p class="hint">v0.3 · WASD / Arrows to move · auto-fires</p>
+          <p class="hint">v0.4 · WASD / Arrows to move · auto-fires</p>
           <p class="hint">Survive 3:00 · level up &amp; pick upgrades</p>
         </div>
 
@@ -61,6 +75,6 @@
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js?v=v03"></script>
+  <script src="game.js?v=v04"></script>
 </body>
 </html>

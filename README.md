@@ -1,4 +1,4 @@
-# Slime Barrage v0.3
+# Slime Barrage v0.4
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across a night grass field while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and survive **3:00**.
 
@@ -35,6 +35,11 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot, Pierce Shot, Snack Break (heal).
 
+## What’s new in v0.4
+
+- **Neon blast logo** on the main menu (hero title art) plus favicon / apple-touch-icon (square crop of the crowned slime). Pixel-crisp `image-rendering`; responsive max-width for phones.
+- **Portrait cover-fill**: canvas stays **480×270** with `image-rendering: pixelated`; CSS size scales up to cover the viewport (crops left/right in portrait). Black letterbars gone when playing vertically; HTML `#ui` overlays still track `#gameBox`.
+
 ## What’s new in v0.3
 
 - **Original Game Boy–inspired BGM** (“Moonlit Meadow”): procedural Web Audio sequencer in `game.js` — G major, 120 BPM, 16-bar loop. Lead 25% pulse, bass 50% pulse, light arpeggio, soft noise on beats 2/4. Style inspiration only; **no** Nintendo / Pokémon melodies and **no** Hololive / Holocure audio.
@@ -48,10 +53,10 @@ Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP)
 ## Files
 
 ```
-index.html   — shell + HTML overlays
-style.css    — letterbox layout, crisp UI, touch stick
-game.js      — game + procedural sprites + SFX + BGM
-assets/      — art references (not required at runtime)
+index.html   — shell + HTML overlays + favicons
+style.css    — cover-fill layout, logo, crisp UI, touch stick
+game.js      — game + procedural sprites + SFX + BGM + fitCanvas cover
+assets/      — logo, favicons, art references
 README.md
 preview-v02.png
 ```

@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v0.3
+ * Slime Barrage v0.4
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * Procedural Web Audio SFX + original GB-inspired BGM (no copyrighted audio).
@@ -11,7 +11,7 @@
   const W = 480, H = 270;
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME = 180; // 3 minutes
-  const VERSION = 'v0.3';
+  const VERSION = 'v0.4';
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -40,15 +40,35 @@
     endStats: document.getElementById('endStats'),
   };
 
-  // Integer CSS scale + letterbox; UI fonts scale with the game box
+  // Cover-fill CSS size (crops edges); canvas stays 480×270 + pixelated.
+  // Portrait fills the phone with no letterbars; landscape also covers when
+  // viewport aspect ≠ 480/270. Integer scale snapped when it still covers.
+  // --ui-pad-* insets #ui to the visible window so HUD/menu are not cropped.
   function fitCanvas() {
-    const scale = Math.max(1, Math.floor(Math.min(
-      (window.innerWidth || document.documentElement.clientWidth) / W,
-      (window.innerHeight || document.documentElement.clientHeight) / H
-    )));
-    gameBox.style.width = (W * scale) + 'px';
-    gameBox.style.height = (H * scale) + 'px';
+    const vw = window.innerWidth || document.documentElement.clientWidth || W;
+    const vh = window.innerHeight || document.documentElement.clientHeight || H;
+    const isPortrait = vh > vw;
+    const aspectDiff = Math.abs(vw / vh - W / H);
+    // Cover at least in portrait; also cover in landscape when contain would letterbox.
+    const useCover = isPortrait || aspectDiff > 0.02;
+    let scale;
+    if (useCover) {
+      scale = Math.max(vw / W, vh / H);
+      const snapped = Math.ceil(scale - 1e-9);
+      // Prefer integer when nearly already covering at that integer
+      if (snapped > 0 && snapped - scale < 0.08) scale = snapped;
+    } else {
+      scale = Math.max(1, Math.floor(Math.min(vw / W, vh / H)));
+    }
+    const boxW = W * scale;
+    const boxH = H * scale;
+    gameBox.style.width = boxW + 'px';
+    gameBox.style.height = boxH + 'px';
+    const padX = Math.max(0, (boxW - vw) / 2);
+    const padY = Math.max(0, (boxH - vh) / 2);
     uiRoot.style.setProperty('--ui-scale', String(scale));
+    uiRoot.style.setProperty('--ui-pad-x', padX + 'px');
+    uiRoot.style.setProperty('--ui-pad-y', padY + 'px');
   }
   window.addEventListener('resize', fitCanvas);
   fitCanvas();

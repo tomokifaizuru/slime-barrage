@@ -20,12 +20,13 @@ html, body {
   background: #000;
 }
 
-/* Sized by JS to integer multiple of 480×270 */
+/* Sized by JS (cover-fill; may be non-integer CSS px). Overflow clips crop. */
 #gameBox {
   position: relative;
   width: 480px;
   height: 270px;
   flex-shrink: 0;
+  overflow: hidden;
   box-shadow: 0 0 40px rgba(120, 80, 200, 0.25);
 }
 
@@ -43,7 +44,11 @@ html, body {
 
 #ui {
   position: absolute;
-  left: 0; top: 0; right: 0; bottom: 0;
+  /* Inset to the visible cover window (JS sets --ui-pad-*) so HUD/menu stay on-screen */
+  left: var(--ui-pad-x, 0px);
+  top: var(--ui-pad-y, 0px);
+  right: var(--ui-pad-x, 0px);
+  bottom: var(--ui-pad-y, 0px);
   pointer-events: none;
   z-index: 4;
   /* Base font scales with game box (JS sets --ui-scale) */
@@ -143,22 +148,47 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.55em;
+  gap: 0.45em;
   text-align: center;
-  padding: 4%;
+  padding: 3% 4%;
   background: rgba(8, 12, 22, 0.42);
+  overflow: auto;
 }
 .panel.dim { background: rgba(6, 8, 16, 0.78); }
 
 .title {
-  font-size: 2.8em;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: #f7a0c0;
-  text-shadow:
-    0 0.06em 0 #8a4060,
-    0 0 1.2em rgba(247, 160, 192, 0.45);
-  line-height: 1.1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  line-height: 0;
+  font-size: inherit; /* keep em usable; visual title is the img */
+}
+.title .logo {
+  display: block;
+  width: min(92%, calc(24 * 10px * var(--ui-scale, 1)));
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  -ms-interpolation-mode: nearest-neighbor;
+  filter: drop-shadow(0 0.12em 0.55em rgba(180, 80, 220, 0.45));
+  pointer-events: none;
+  user-select: none;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .subtitle {
   font-size: 1.05em;
