@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Slime Barrage" />
-  <title>Slime Barrage v0.6</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v06" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v06" />
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v06" />
-  <link rel="stylesheet" href="style.css?v=v06" />
+  <title>Slime Barrage v0.7</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v07" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v07" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v07" />
+  <link rel="stylesheet" href="style.css?v=v07" />
 </head>
 <body>
   <div id="stage">
@@ -28,33 +28,57 @@
             </div>
           </div>
           <div class="hud-center">
-            <div id="timer" class="timer">3:00</div>
+            <div id="timer" class="timer">5:00</div>
           </div>
           <div class="hud-right">
             <div id="kills" class="kills">Kills 0</div>
-            <button type="button" id="muteBtnHud" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊</button>
+            <div class="hud-btns">
+              <button type="button" id="pauseBtn" class="mute-btn pause-btn" title="Pause" aria-label="Pause">⏸</button>
+              <button type="button" id="muteBtnHud" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊</button>
+            </div>
           </div>
         </div>
 
         <div id="menu" class="panel">
           <h1 class="title">
-            <img
-              class="logo"
-              src="assets/logo-neon-blast.png?v=v06"
-              alt="Slime Barrage"
-              width="1280"
-              height="720"
-              decoding="async"
-            />
-            <span class="sr-only">SLIME BARRAGE</span>
+            <span class="title-text">SLIME BARRAGE</span>
           </h1>
           <p class="subtitle">auto-survivor · original IP</p>
           <button type="button" id="playBtn" class="btn primary">PLAY</button>
           <div class="menu-audio">
+            <div class="vol-row">
+              <label for="musicVol">Music</label>
+              <input type="range" id="musicVol" min="0" max="100" value="100" aria-label="Music volume" />
+              <span id="musicVolVal" class="vol-val">100</span>
+            </div>
+            <div class="vol-row">
+              <label for="sfxVol">SFX</label>
+              <input type="range" id="sfxVol" min="0" max="100" value="100" aria-label="SFX volume" />
+              <span id="sfxVolVal" class="vol-val">100</span>
+            </div>
             <button type="button" id="muteBtnMenu" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
           </div>
-          <p class="hint">v0.6 · WASD / Arrows to move · auto-fires</p>
-          <p class="hint">Survive 3:00 · level up &amp; pick upgrades</p>
+          <p class="hint">v0.7 · WASD / Arrows to move · auto-fires</p>
+          <p class="hint">Survive 5:00 · level up &amp; pick upgrades</p>
+        </div>
+
+        <div id="pause" class="panel dim hidden">
+          <h2 class="panel-title">PAUSED</h2>
+          <p class="panel-sub">Tap resume or press Esc / P</p>
+          <div class="menu-audio pause-audio">
+            <div class="vol-row">
+              <label for="musicVolPause">Music</label>
+              <input type="range" id="musicVolPause" min="0" max="100" value="100" aria-label="Music volume" />
+              <span id="musicVolPauseVal" class="vol-val">100</span>
+            </div>
+            <div class="vol-row">
+              <label for="sfxVolPause">SFX</label>
+              <input type="range" id="sfxVolPause" min="0" max="100" value="100" aria-label="SFX volume" />
+              <span id="sfxVolPauseVal" class="vol-val">100</span>
+            </div>
+          </div>
+          <button type="button" id="resumeBtn" class="btn primary">RESUME</button>
+          <button type="button" id="pauseMenuBtn" class="btn">Back to menu</button>
         </div>
 
         <div id="levelup" class="panel dim hidden">
@@ -75,6 +99,6 @@
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js?v=v06"></script>
+  <script src="game.js?v=v07"></script>
 </body>
 </html>

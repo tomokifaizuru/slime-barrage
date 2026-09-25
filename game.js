@@ -1,8 +1,9 @@
 /**
- * Slime Barrage v0.6
+ * Slime Barrage v0.7
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * Procedural Web Audio SFX + original GB-inspired BGM (no copyrighted audio).
+ * World/camera zoom (VIEW_ZOOM) — UI overlays stay screen-sized.
  */
 (() => {
   'use strict';
@@ -13,10 +14,14 @@
   const BASE_W = 480, BASE_H = 270;
   let W = BASE_W, H = BASE_H;
   const WORLD_W = 2400, WORLD_H = 2400;
-  const WIN_TIME = 180; // 3 minutes
-  const VERSION = 'v0.6';
+  const WIN_TIME = 300; // 5 minutes
+  const VERSION = 'v0.7';
   const VIEW_H_MIN = 270;
   const VIEW_H_MAX = 1200;
+  // World→screen zoom: visible meadow is W/1.25 × H/1.25; canvas CSS + UI unchanged.
+  const VIEW_ZOOM = 1.25;
+  function viewWorldW() { return W / VIEW_ZOOM; }
+  function viewWorldH() { return H / VIEW_ZOOM; }
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -27,12 +32,24 @@
   const el = {
     menu: document.getElementById('menu'),
     hud: document.getElementById('hud'),
+    pause: document.getElementById('pause'),
     levelup: document.getElementById('levelup'),
     end: document.getElementById('end'),
     playBtn: document.getElementById('playBtn'),
     menuBtn: document.getElementById('menuBtn'),
+    resumeBtn: document.getElementById('resumeBtn'),
+    pauseMenuBtn: document.getElementById('pauseMenuBtn'),
+    pauseBtn: document.getElementById('pauseBtn'),
     muteBtnMenu: document.getElementById('muteBtnMenu'),
     muteBtnHud: document.getElementById('muteBtnHud'),
+    musicVol: document.getElementById('musicVol'),
+    sfxVol: document.getElementById('sfxVol'),
+    musicVolVal: document.getElementById('musicVolVal'),
+    sfxVolVal: document.getElementById('sfxVolVal'),
+    musicVolPause: document.getElementById('musicVolPause'),
+    sfxVolPause: document.getElementById('sfxVolPause'),
+    musicVolPauseVal: document.getElementById('musicVolPauseVal'),
+    sfxVolPauseVal: document.getElementById('sfxVolPauseVal'),
     hpFill: document.getElementById('hpFill'),
     hpText: document.getElementById('hpText'),
     xpFill: document.getElementById('xpFill'),
@@ -146,6 +163,11 @@
     let bgmGain = null;
     let muted = localStorage.getItem('slimeBarrageMuted') === '1';
     let unlocked = false;
+    let musicVol = clamp01(parseFloat(localStorage.getItem('slimeBarrageMusicVol')));
+    let sfxVol = clamp01(parseFloat(localStorage.getItem('slimeBarrageSfxVol')));
+    if (!isFinite(musicVol)) musicVol = 1;
+    if (!isFinite(sfxVol)) sfxVol = 1;
+    let bgmDucked = false;
 
     let bgmWanted = false;
     let bgmPlaying = false;
@@ -161,6 +183,23 @@
     const BGM_LOOKAHEAD = 0.12;
     const BGM_SCHEDULE_AHEAD = 0.25;
     const BGM_GAIN = 0.15;
+
+    function clamp01(v) {
+      if (!isFinite(v)) return NaN;
+      return Math.max(0, Math.min(1, v));
+    }
+    function effectiveBgmGain() {
+      const duck = bgmDucked ? 0.12 : 1;
+      return BGM_GAIN * musicVol * duck;
+    }
+    function applyVolumes() {
+      if (master) master.gain.value = muted ? 0 : 0.35;
+      if (sfxGain) sfxGain.gain.value = sfxVol;
+      if (bgmGain) {
+        bgmGain.gain.cancelScheduledValues(ctxA ? ctxA.currentTime : 0);
+        bgmGain.gain.setValueAtTime(Math.max(0.0001, effectiveBgmGain()), ctxA ? ctxA.currentTime : 0);
+      }
+    }
 
     // Original "Moonlit Meadow" — G major cozy night walk (NOT Nintendo melodies)
     // 16 bars × 8 eighths = 128 steps. 0 = rest.
@@ -244,11 +283,11 @@
       master.connect(ctxA.destination);
 
       sfxGain = ctxA.createGain();
-      sfxGain.gain.value = 1;
+      sfxGain.gain.value = sfxVol;
       sfxGain.connect(master);
 
       bgmGain = ctxA.createGain();
-      bgmGain.gain.value = BGM_GAIN;
+      bgmGain.gain.value = effectiveBgmGain();
       bgmGain.connect(master);
 
       pulse50 = makePulseWave(0.5);
@@ -278,11 +317,31 @@
     function setMuted(m) {
       muted = !!m;
       localStorage.setItem('slimeBarrageMuted', muted ? '1' : '0');
-      if (master) master.gain.value = muted ? 0 : 0.35;
+      applyVolumes();
       syncMuteUI();
     }
     function toggleMute() { setMuted(!muted); }
     function isMuted() { return muted; }
+    function getMusicVol() { return musicVol; }
+    function getSfxVol() { return sfxVol; }
+    function setMusicVol(v) {
+      musicVol = clamp01(v);
+      if (!isFinite(musicVol)) musicVol = 1;
+      localStorage.setItem('slimeBarrageMusicVol', String(musicVol));
+      applyVolumes();
+      syncVolUI();
+    }
+    function setSfxVol(v) {
+      sfxVol = clamp01(v);
+      if (!isFinite(sfxVol)) sfxVol = 1;
+      localStorage.setItem('slimeBarrageSfxVol', String(sfxVol));
+      applyVolumes();
+      syncVolUI();
+    }
+    function setBgmDucked(d) {
+      bgmDucked = !!d;
+      applyVolumes();
+    }
 
     function tone(freq, dur, type, vol, slideTo) {
       if (!ensure() || muted || !unlocked) return;
@@ -429,7 +488,7 @@
       bgmNextTime = ctxA.currentTime + 0.05;
       if (bgmGain) {
         bgmGain.gain.cancelScheduledValues(ctxA.currentTime);
-        bgmGain.gain.setValueAtTime(BGM_GAIN, ctxA.currentTime);
+        bgmGain.gain.setValueAtTime(Math.max(0.0001, effectiveBgmGain()), ctxA.currentTime);
       }
       schedulerTick();
       bgmTimer = setInterval(schedulerTick, BGM_LOOKAHEAD * 1000);
@@ -450,20 +509,21 @@
         setTimeout(() => {
           if (!bgmWanted && bgmGain) {
             bgmGain.gain.cancelScheduledValues(ctxA.currentTime);
-            bgmGain.gain.setValueAtTime(BGM_GAIN, ctxA.currentTime);
+            bgmGain.gain.setValueAtTime(Math.max(0.0001, effectiveBgmGain()), ctxA.currentTime);
           }
         }, 400);
       } else {
         stopBgmSchedulerOnly();
         if (bgmGain) {
           bgmGain.gain.cancelScheduledValues(t);
-          bgmGain.gain.setValueAtTime(BGM_GAIN, t);
+          bgmGain.gain.setValueAtTime(Math.max(0.0001, effectiveBgmGain()), t);
         }
       }
     }
 
     return {
       unlock, toggleMute, setMuted, isMuted,
+      getMusicVol, getSfxVol, setMusicVol, setSfxVol, setBgmDucked,
       shoot, hit, kill, xp, levelUp, hurt, death, win, click,
       startBgm, stopBgm,
     };
@@ -477,7 +537,38 @@
     el.muteBtnHud.textContent = short;
     el.muteBtnHud.classList.toggle('muted', AudioFX.isMuted());
   }
+
+  function syncVolUI() {
+    const m = Math.round(AudioFX.getMusicVol() * 100);
+    const s = Math.round(AudioFX.getSfxVol() * 100);
+    const pairs = [
+      [el.musicVol, el.musicVolVal, m],
+      [el.sfxVol, el.sfxVolVal, s],
+      [el.musicVolPause, el.musicVolPauseVal, m],
+      [el.sfxVolPause, el.sfxVolPauseVal, s],
+    ];
+    for (const [input, label, val] of pairs) {
+      if (!input) continue;
+      if (document.activeElement !== input) input.value = String(val);
+      if (label) label.textContent = String(val);
+    }
+  }
   syncMuteUI();
+  syncVolUI();
+
+  function bindVolSlider(input, setter) {
+    if (!input) return;
+    const onChange = () => {
+      AudioFX.unlock();
+      setter(parseInt(input.value, 10) / 100);
+    };
+    input.addEventListener('input', onChange);
+    input.addEventListener('change', onChange);
+  }
+  bindVolSlider(el.musicVol, AudioFX.setMusicVol);
+  bindVolSlider(el.sfxVol, AudioFX.setSfxVol);
+  bindVolSlider(el.musicVolPause, AudioFX.setMusicVol);
+  bindVolSlider(el.sfxVolPause, AudioFX.setSfxVol);
 
   // ---------- Input ----------
   const keys = Object.create(null);
@@ -501,6 +592,10 @@
       if (e.code === 'Digit3' || e.code === 'Numpad3') pickUpgrade(2);
     }
     if (e.code === 'KeyM') { AudioFX.unlock(); AudioFX.toggleMute(); }
+    if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (state === 'PLAYING') { e.preventDefault(); togglePause(true); }
+      else if (state === 'PAUSED') { e.preventDefault(); togglePause(false); }
+    }
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
 
@@ -542,6 +637,21 @@
   el.menuBtn.addEventListener('click', () => { AudioFX.click(); goMenu(); });
   el.muteBtnMenu.addEventListener('click', () => { AudioFX.unlock(); AudioFX.toggleMute(); });
   el.muteBtnHud.addEventListener('click', () => { AudioFX.unlock(); AudioFX.toggleMute(); });
+  el.pauseBtn.addEventListener('click', () => {
+    AudioFX.unlock();
+    AudioFX.click();
+    if (state === 'PLAYING') togglePause(true);
+  });
+  el.resumeBtn.addEventListener('click', () => {
+    AudioFX.unlock();
+    AudioFX.click();
+    togglePause(false);
+  });
+  el.pauseMenuBtn.addEventListener('click', () => {
+    AudioFX.click();
+    AudioFX.setBgmDucked(false);
+    goMenu();
+  });
 
   // ---------- Pixel sprite helpers ----------
   function makeSprite(w, h, drawFn) {
@@ -719,9 +829,54 @@
     fillRect(g, 3, 2, 2, 4, '#e0ffff');
   });
 
+  // Night-meadow props (procedural) — trunk/core is the solid collider; canopy is visual only.
+  function drawTreeSprite(g, w, h, palette) {
+    const cx = (w / 2) | 0;
+    // trunk
+    fillRect(g, cx - 2, h - 12, 4, 11, palette.trunk);
+    fillRect(g, cx - 1, h - 12, 2, 11, palette.trunkHi);
+    // canopy layers
+    fillRect(g, cx - 9, 6, 18, 12, palette.leaf);
+    fillRect(g, cx - 7, 2, 14, 10, palette.leafHi);
+    fillRect(g, cx - 5, 0, 10, 6, palette.leaf);
+    // night speckles
+    px(g, cx - 4, 5, palette.speck);
+    px(g, cx + 3, 8, palette.speck);
+    px(g, cx + 1, 3, '#c090ff');
+    // root shadow
+    fillRect(g, cx - 4, h - 2, 8, 2, 'rgba(0,0,0,0.35)');
+  }
+  function drawBushSprite(g, w, h, palette) {
+    const cx = (w / 2) | 0;
+    fillRect(g, cx - 7, h - 10, 14, 8, palette.leaf);
+    fillRect(g, cx - 5, h - 13, 10, 7, palette.leafHi);
+    fillRect(g, cx - 3, h - 15, 6, 4, palette.leaf);
+    px(g, cx - 2, h - 11, palette.speck);
+    px(g, cx + 2, h - 9, '#6a8cff');
+    fillRect(g, cx - 1, h - 4, 2, 3, palette.trunk);
+    fillRect(g, cx - 4, h - 2, 8, 2, 'rgba(0,0,0,0.3)');
+  }
+  const treePalettes = [
+    { trunk: '#5a3a28', trunkHi: '#7a5640', leaf: '#1e4a32', leafHi: '#2a6a48', speck: '#7dcea0' },
+    { trunk: '#4a3020', trunkHi: '#6a4834', leaf: '#243e38', leafHi: '#356a58', speck: '#a0e0c0' },
+    { trunk: '#5a3a28', trunkHi: '#7a5640', leaf: '#2a3e50', leafHi: '#3a5a68', speck: '#90b0ff' },
+  ];
+  const bushPalettes = [
+    { trunk: '#4a3020', leaf: '#2a5a38', leafHi: '#3a7a50', speck: '#c090ff' },
+    { trunk: '#4a3020', leaf: '#1e4a40', leafHi: '#2e6a58', speck: '#7dcea0' },
+    { trunk: '#4a3020', leaf: '#3a4a30', leafHi: '#5a6a40', speck: '#e8c84a' },
+  ];
+  const treeSprites = treePalettes.map((pal) =>
+    makeSprite(24, 32, (g, w, h) => drawTreeSprite(g, w, h, pal))
+  );
+  const bushSprites = bushPalettes.map((pal) =>
+    makeSprite(16, 16, (g, w, h) => drawBushSprite(g, w, h, pal))
+  );
+
   // ---------- Game state ----------
   let state = 'MENU';
   let player, enemies, projectiles, gems, particles;
+  let obstacles = [];
   let cam = { x: 0, y: 0 };
   let timeAlive = 0;
   let spawnTimer = 0;
@@ -762,12 +917,120 @@
 
   function showOnly(panel) {
     el.menu.classList.toggle('hidden', panel !== 'menu');
-    el.hud.classList.toggle('hidden', panel !== 'hud' && panel !== 'levelup' && panel !== 'end');
-    // Keep HUD visible under levelup/end for context, but hide on menu
-    if (panel === 'levelup' || panel === 'end') el.hud.classList.remove('hidden');
+    el.hud.classList.toggle('hidden', panel !== 'hud' && panel !== 'levelup' && panel !== 'end' && panel !== 'pause');
+    // Keep HUD visible under levelup/end/pause for context, but hide on menu
+    if (panel === 'levelup' || panel === 'end' || panel === 'pause') el.hud.classList.remove('hidden');
     if (panel === 'menu') el.hud.classList.add('hidden');
+    el.pause.classList.toggle('hidden', panel !== 'pause');
     el.levelup.classList.toggle('hidden', panel !== 'levelup');
     el.end.classList.toggle('hidden', panel !== 'end');
+  }
+
+  function togglePause(on) {
+    if (on) {
+      if (state !== 'PLAYING') return;
+      state = 'PAUSED';
+      AudioFX.setBgmDucked(true);
+      syncVolUI();
+      showOnly('pause');
+    } else {
+      if (state !== 'PAUSED') return;
+      state = 'PLAYING';
+      AudioFX.setBgmDucked(false);
+      showOnly('hud');
+      syncHud();
+    }
+  }
+
+  // Seeded scatter of trees/bushes across the 2400×2400 meadow.
+  // Keeps a clear radius around world-center spawn so the run starts open.
+  function mulberry32(seed) {
+    let t = seed >>> 0;
+    return function () {
+      t += 0x6D2B79F5;
+      let r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function buildObstacles() {
+    const rand = mulberry32(0x5B07A7E ^ 0x51E); // fixed seed → stable layout
+    const list = [];
+    const spawnX = WORLD_W / 2, spawnY = WORLD_H / 2;
+    const CLEAR_R = 200;
+    const MIN_GAP = 36;
+    const TARGET = 170;
+
+    function ok(x, y, r) {
+      const dx = x - spawnX, dy = y - spawnY;
+      if (dx * dx + dy * dy < (CLEAR_R + r) * (CLEAR_R + r)) return false;
+      if (x < 48 || y < 48 || x > WORLD_W - 48 || y > WORLD_H - 48) return false;
+      for (const o of list) {
+        const ddx = o.x - x, ddy = o.y - y;
+        const need = o.r + r + MIN_GAP * 0.35;
+        if (ddx * ddx + ddy * ddy < need * need) return false;
+      }
+      return true;
+    }
+
+    let attempts = 0;
+    while (list.length < TARGET && attempts < TARGET * 40) {
+      attempts++;
+      const isTree = rand() < 0.55;
+      const x = 60 + rand() * (WORLD_W - 120);
+      const y = 60 + rand() * (WORLD_H - 120);
+      if (isTree) {
+        const variant = (rand() * treeSprites.length) | 0;
+        const r = 8 + (rand() * 3) | 0;
+        if (!ok(x, y, r)) continue;
+        list.push({
+          kind: 'tree', x, y, r,
+          spr: treeSprites[variant],
+          ox: treeSprites[variant].width / 2,
+          oy: treeSprites[variant].height - 2,
+        });
+      } else {
+        const variant = (rand() * bushSprites.length) | 0;
+        const r = 6 + (rand() * 2) | 0;
+        if (!ok(x, y, r)) continue;
+        list.push({
+          kind: 'bush', x, y, r,
+          spr: bushSprites[variant],
+          ox: bushSprites[variant].width / 2,
+          oy: bushSprites[variant].height - 2,
+        });
+      }
+    }
+    return list;
+  }
+  obstacles = buildObstacles();
+
+  // Circle vs solid trunk/bush core. Projectiles intentionally ignore obstacles (pass through foliage).
+  function resolveObstacleCircle(ent, radius) {
+    for (const o of obstacles) {
+      const dx = ent.x - o.x;
+      const dy = ent.y - o.y;
+      const minD = o.r + radius;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > 0 && d2 < minD * minD) {
+        const d = Math.sqrt(d2) || 0.0001;
+        const push = (minD - d) / d;
+        ent.x += dx * push;
+        ent.y += dy * push;
+      } else if (d2 === 0) {
+        ent.x += minD;
+      }
+    }
+  }
+
+  function overlapsObstacle(x, y, radius) {
+    for (const o of obstacles) {
+      const dx = x - o.x, dy = y - o.y;
+      const minD = o.r + radius;
+      if (dx * dx + dy * dy < minD * minD) return true;
+    }
+    return false;
   }
 
   function startGame() {
@@ -780,6 +1043,7 @@
     spawnTimer = 0.5;
     killCount = 0;
     flashHurt = 0;
+    AudioFX.setBgmDucked(false);
     state = 'PLAYING';
     showOnly('hud');
     syncHud();
@@ -788,6 +1052,7 @@
   }
 
   function goMenu() {
+    AudioFX.setBgmDucked(false);
     AudioFX.stopBgm(true);
     state = 'MENU';
     showOnly('menu');
@@ -829,6 +1094,13 @@
     let y = player.y + Math.sin(ang) * dist;
     x = Math.max(40, Math.min(WORLD_W - 40, x));
     y = Math.max(40, Math.min(WORLD_H - 40, y));
+    const spawnR = isKing ? 16 : 10;
+    for (let tries = 0; tries < 8 && overlapsObstacle(x, y, spawnR); tries++) {
+      const a2 = Math.random() * Math.PI * 2;
+      const d2 = dist + tries * 24;
+      x = Math.max(40, Math.min(WORLD_W - 40, player.x + Math.cos(a2) * d2));
+      y = Math.max(40, Math.min(WORLD_H - 40, player.y + Math.sin(a2) * d2));
+    }
 
     const baseHp = isKing ? 80 + t * 0.6 : 18 + t * 0.35;
     const baseSpd = isKing ? 38 : 48 + Math.min(40, t * 0.15);
@@ -952,7 +1224,7 @@
   function update(dt) {
     animT += dt;
     menuPulse += dt;
-    if (state === 'MENU' || state === 'LEVELUP' || state === 'GAMEOVER' || state === 'WIN') return;
+    if (state === 'MENU' || state === 'LEVELUP' || state === 'PAUSED' || state === 'GAMEOVER' || state === 'WIN') return;
 
     timeAlive += dt;
     if (flashHurt > 0) flashHurt -= dt;
@@ -981,11 +1253,15 @@
     }
     player.x = Math.max(20, Math.min(WORLD_W - 20, player.x));
     player.y = Math.max(20, Math.min(WORLD_H - 20, player.y));
+    resolveObstacleCircle(player, 7);
+    player.x = Math.max(20, Math.min(WORLD_W - 20, player.x));
+    player.y = Math.max(20, Math.min(WORLD_H - 20, player.y));
 
-    cam.x = player.x - W / 2;
-    cam.y = player.y - H / 2;
-    cam.x = Math.max(0, Math.min(WORLD_W - W, cam.x));
-    cam.y = Math.max(0, Math.min(WORLD_H - H, cam.y));
+    const vw = viewWorldW(), vh = viewWorldH();
+    cam.x = player.x - vw / 2;
+    cam.y = player.y - vh / 2;
+    cam.x = Math.max(0, Math.min(WORLD_W - vw, cam.x));
+    cam.y = Math.max(0, Math.min(WORLD_H - vh, cam.y));
 
     player.fireCd -= dt;
     if (player.fireCd <= 0) {
@@ -1041,6 +1317,7 @@
       const d = Math.hypot(dx, dy) || 1;
       e.x += (dx / d) * e.speed * dt;
       e.y += (dy / d) * e.speed * dt;
+      resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
 
       if (d < e.r + 8 && player.invuln <= 0) {
         player.hp -= e.damage;
@@ -1178,6 +1455,40 @@
     }
   }
 
+  function drawOneObstacle(o) {
+    const s = worldToScreen(o.x, o.y);
+    if (s.x < -48 || s.y < -64 || s.x > W + 48 || s.y > H + 64) return;
+    blit(ctx, o.spr, s.x - o.ox, s.y - o.oy);
+  }
+
+  function drawOneEnemy(e) {
+    const s = worldToScreen(e.x, e.y);
+    if (s.x < -40 || s.y < -40 || s.x > W + 40 || s.y > H + 40) return;
+    const frames = slimeFrames[e.color] || slimeFrames.mint;
+    const fr = frames[e.frame % frames.length];
+    const ox = fr.width / 2;
+    const oy = fr.height - 2;
+    blit(ctx, fr, s.x - ox, s.y - oy);
+    if (e.isKing || e.hp < e.maxHp) {
+      const bw = e.isKing ? 22 : 14;
+      ctx.fillStyle = '#1a1020';
+      ctx.fillRect(s.x - bw / 2, s.y - oy - 5, bw, 3);
+      ctx.fillStyle = e.isKing ? '#e8c84a' : '#7dcea0';
+      ctx.fillRect(s.x - bw / 2, s.y - oy - 5, bw * (e.hp / e.maxHp), 3);
+    }
+  }
+
+  // Y-sort props with critters so characters walk in front of / behind trunks.
+  function drawSortedWorld() {
+    const items = [];
+    for (const o of obstacles) items.push({ y: o.y, draw: () => drawOneObstacle(o) });
+    for (const e of enemies) items.push({ y: e.y, draw: () => drawOneEnemy(e) });
+    if (player) items.push({ y: player.y, draw: () => drawPlayer() });
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) it.draw();
+  }
+
+
   function drawProjectiles() {
     for (const p of projectiles) {
       const s = worldToScreen(p.x, p.y);
@@ -1223,19 +1534,32 @@
   }
 
   function draw() {
-    if (state === 'MENU') {
-      drawMenuBackdrop();
-      return;
-    }
-    drawNightGrass();
-    drawGems();
-    drawEnemies();
-    drawProjectiles();
-    drawPlayer();
-    drawParticles();
-    if (flashHurt > 0) {
-      ctx.fillStyle = `rgba(180,20,60,${flashHurt * 0.45})`;
-      ctx.fillRect(0, 0, W, H);
+    // Scale world onto full canvas so ~25% less meadow is visible; UI stays CSS-sized.
+    ctx.save();
+    ctx.setTransform(VIEW_ZOOM, 0, 0, VIEW_ZOOM, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    const savedW = W, savedH = H;
+    W = savedW / VIEW_ZOOM;
+    H = savedH / VIEW_ZOOM;
+    try {
+      if (state === 'MENU') {
+        drawMenuBackdrop();
+      } else {
+        drawNightGrass();
+        drawGems();
+        drawSortedWorld();
+        drawProjectiles(); // sparks pass through foliage; drawn above for readability
+        drawParticles();
+        if (flashHurt > 0) {
+          ctx.fillStyle = `rgba(180,20,60,${flashHurt * 0.45})`;
+          ctx.fillRect(0, 0, W, H);
+        }
+      }
+    } finally {
+      W = savedW;
+      H = savedH;
+      ctx.restore();
+      ctx.imageSmoothingEnabled = false;
     }
   }
 
@@ -1260,6 +1584,8 @@
     getState: () => state,
     getCanvas: () => canvas,
     VERSION,
+    VIEW_ZOOM,
+    togglePause,
     forcePlaySeconds: (sec) => {
       startGame();
       for (let i = 0; i < 25; i++) spawnSlime(true);
@@ -1281,10 +1607,11 @@
       timeAlive = sec;
       player.level = 3;
       player.xp = 4;
-      cam.x = player.x - W / 2;
-      cam.y = player.y - H / 2;
+      cam.x = player.x - viewWorldW() / 2;
+      cam.y = player.y - viewWorldH() / 2;
       syncHud();
     },
+    obstacleCount: () => obstacles.length,
     showLevelUpDemo: () => {
       if (state !== 'PLAYING') startGame();
       offerLevelUp();

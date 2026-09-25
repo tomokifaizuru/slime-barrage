@@ -1,6 +1,6 @@
-# Slime Barrage v0.6
+# Slime Barrage v0.7
 
-A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across a night grass field while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and survive **3:00**.
+A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across a night grass field while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and survive **5:00**.
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
@@ -24,6 +24,8 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 | **1 / 2 / 3** or tap cards | Pick level-up upgrade |
 | **Enter / Space / R** | Confirm on menu / game over |
 | **M** or 🔊 button | Mute / unmute (saved) |
+| **Esc / P** or ⏸ button | Pause / resume |
+| Music / SFX sliders | Separate volumes (saved) |
 | On-screen stick (touch) | Move on mobile |
 
 ### Goal
@@ -34,6 +36,16 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 ### Upgrades (pick 1 of 3 on level up)
 
 Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot, Pierce Shot, Snack Break (heal).
+
+## What’s new in v0.7
+
+- **Trees & bushes** scatter across the 2400×2400 meadow (seeded/deterministic layout, clear radius around spawn). Procedural pixel sprites; solid trunk/bush-core circles block the player and slimes. Projectiles pass through foliage. Props Y-sort with entities so you walk in front of / behind them.
+
+- **~25% world zoom-in** (`VIEW_ZOOM = 1.25`): camera shows less meadow so characters/slimes appear larger. Canvas CSS size + HUD/menu `--ui-scale` clamps / pads / touch stick from v0.6 stay the same (no UI blow-up).
+- **Text title** on the main menu: bold bordered **SLIME BARRAGE** (pixel/arcade CSS) replaces the neon-blast logo image. Favicons unchanged.
+- **Music + SFX volume** sliders (0–100), persisted in `localStorage`, wired to `bgmGain` / `sfxGain`. Mute still zeros master while keeping slider values. Controls on main menu + pause panel.
+- **Pause button** in the HUD (Esc / P on desktop). Freezes the run and ducks BGM; resume via button / Esc / P. Level-up choice pause unchanged.
+- **Survive 5:00** (`WIN_TIME = 300`; was 3:00).
 
 ## What’s new in v0.6
 
@@ -64,9 +76,9 @@ Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP)
 
 ```
 index.html   — shell + HTML overlays + favicons
-style.css    — contain layout, logo cap, crisp UI, touch stick
-game.js      — game + procedural sprites + SFX + BGM + taller portrait view
-assets/      — logo, favicons, art references
+style.css    — contain layout, title border, volume rows, crisp UI, touch stick
+game.js      — game + procedural sprites (incl. trees/bushes) + SFX + BGM + zoom + pause + volumes
+assets/      — favicons, art references
 README.md
 preview-v02.png / preview-v05-phone.png / preview-v06-phone.png
 ```
@@ -79,7 +91,7 @@ Sprites are drawn procedurally in canvas (hoodie girl + mint/pink/yellow/purple 
 - No map props / obstacles
 - Enemy AI is chase-only
 - No save / meta progression
-- Win timer fixed at 3 minutes
+- Win timer fixed at 5 minutes
 
 ## License / IP
 
