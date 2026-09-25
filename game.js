@@ -1,10 +1,11 @@
 /**
- * Slime Barrage v0.8
+ * Slime Barrage v0.9
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit calm / Nightfall boss) with procedural fallback.
  * Mid-run Pink-Mint Monarch boss, floating touch stick, soft damage numbers.
- * World/camera zoom (VIEW_ZOOM) — UI overlays stay screen-sized.
+ * Portrait/landscape world zoom, infinite meadow, Survival + Timed modes.
+ * Orbit Guard + Pulse Laser upgrades; multishot hard-capped at 6.
  */
 (() => {
   'use strict';
@@ -14,14 +15,21 @@
   // so width-fit scale fills the phone with no letterbars / no side crop.
   const BASE_W = 480, BASE_H = 270;
   let W = BASE_W, H = BASE_H;
+  // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
-  const WIN_TIME = 300; // 5 minutes
-  const VERSION = 'v0.8';
-  const BOSS_SPAWN_AT = 150; // ~2:30 into 5:00 run
+  const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
+  const VERSION = 'v0.9';
+  const BOSS_SPAWN_AT = 150; // ~2:30 into Timed 6:00 / Survival from start
   const VIEW_H_MIN = 270;
   const VIEW_H_MAX = 1200;
-  // World→screen zoom: visible meadow is W/1.25 × H/1.25; canvas CSS + UI unchanged.
-  const VIEW_ZOOM = 1.25;
+  // World→screen zoom (mutable; recomputed on resize/orientation). UI stays CSS-sized.
+  const VIEW_ZOOM_PORTRAIT = 1.55;
+  const VIEW_ZOOM_LANDSCAPE = 1.05;
+  let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
+  const MULTISHOT_MAX = 6;
+  const CLEANUP_DIST = 980;
+  const PROP_CHUNK = 360;
+  const PROP_KEEP_CHUNKS = 3; // ± chunks around player
   function viewWorldW() { return W / VIEW_ZOOM; }
   function viewWorldH() { return H / VIEW_ZOOM; }
 
@@ -37,7 +45,8 @@
     pause: document.getElementById('pause'),
     levelup: document.getElementById('levelup'),
     end: document.getElementById('end'),
-    playBtn: document.getElementById('playBtn'),
+    playSurvivalBtn: document.getElementById('playSurvivalBtn'),
+    playTimedBtn: document.getElementById('playTimedBtn'),
     menuBtn: document.getElementById('menuBtn'),
     resumeBtn: document.getElementById('resumeBtn'),
     pauseMenuBtn: document.getElementById('pauseMenuBtn'),
@@ -93,6 +102,9 @@
     const vw = window.innerWidth || document.documentElement.clientWidth || BASE_W;
     const vh = window.innerHeight || document.documentElement.clientHeight || BASE_H;
     const isPortrait = vh > vw;
+    // Portrait: meadow feels larger (~1.55). Landscape: near-normal (~1.05).
+    // Does NOT enlarge HUD/UI chrome (CSS --ui-scale stays independent).
+    VIEW_ZOOM = isPortrait ? VIEW_ZOOM_PORTRAIT : VIEW_ZOOM_LANDSCAPE;
 
     resizeView(vw, vh);
 
@@ -792,7 +804,7 @@
     keys[e.code] = true;
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
     if (state === 'MENU' && (e.code === 'Enter' || e.code === 'Space')) {
-      AudioFX.unlock(); AudioFX.click(); startGame();
+      AudioFX.unlock(); AudioFX.click(); startGame(playMode);
     }
     if ((state === 'GAMEOVER' || state === 'WIN') && (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyR')) {
       AudioFX.click(); goMenu();
@@ -902,11 +914,16 @@
     stageEl.addEventListener('touchcancel', onFloatTouchEnd, { passive: false });
   }
 
-  el.playBtn.addEventListener('click', () => {
-    AudioFX.unlock();
-    AudioFX.click();
-    startGame();
-  });
+  function bindModeStart(btn, mode) {
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      AudioFX.unlock();
+      AudioFX.click();
+      startGame(mode);
+    });
+  }
+  bindModeStart(el.playSurvivalBtn, 'survival');
+  bindModeStart(el.playTimedBtn, 'timed');
   el.menuBtn.addEventListener('click', () => { AudioFX.click(); goMenu(); });
   el.muteBtnMenu.addEventListener('click', () => { AudioFX.unlock(); AudioFX.toggleMute(); });
   el.muteBtnHud.addEventListener('click', () => { AudioFX.unlock(); AudioFX.toggleMute(); });
@@ -1168,7 +1185,7 @@
     yellow: makeSlimeFrames(slimePalettes.yellow, 16),
     purple: makeSlimeFrames(slimePalettes.purple, 16),
     king: makeSlimeFrames(slimePalettes.mint, 22, true),
-    monarch: makeMonarchFrames(48),
+    monarch: makeMonarchFrames(64),
   };
 
   const projSprite = makeSprite(6, 6, (g) => {
@@ -1242,6 +1259,9 @@
   let menuPulse = 0;
   let bossSpawned = false;
   let bossAlive = false;
+  let playMode = localStorage.getItem('slimeBarrageMode') === 'survival' ? 'survival' : 'timed';
+  let lasers = []; // active beam visuals {x,y,ang,life,damage,hit}
+  let bestSurvival = parseFloat(localStorage.getItem('slimeBarrageBestSurvival') || '0') || 0;
 
   const UPGRADE_DEFS = [
     { id: 'dmg', name: 'Sharp Spark', desc: '+25% projectile damage', apply: p => { p.damage = Math.round(p.damage * 1.25); } },
@@ -1249,14 +1269,24 @@
     { id: 'spd', name: 'Sneaker Boost', desc: '+15% move speed', apply: p => { p.speed *= 1.15; } },
     { id: 'hp', name: 'Hoodie Padding', desc: '+20 max HP & heal 20', apply: p => { p.maxHp += 20; p.hp = Math.min(p.maxHp, p.hp + 20); } },
     { id: 'magnet', name: 'Gem Magnet', desc: '+40% pickup range', apply: p => { p.magnet *= 1.4; } },
-    { id: 'multi', name: 'Multishot', desc: '+1 projectile', apply: p => { p.multishot += 1; } },
+    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 6)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
     { id: 'pierce', name: 'Pierce Shot', desc: 'Projectiles pierce +1', apply: p => { p.pierce += 1; } },
     { id: 'heal', name: 'Snack Break', desc: 'Restore 40 HP', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
+    { id: 'orbit', name: 'Orbit Guard', desc: 'Shield orbs spin & smash', apply: p => {
+      if (!p.orbitOrbs) { p.orbitOrbs = 2; p.orbitRadius = 44; }
+      else { p.orbitOrbs += 1; p.orbitRadius = Math.min(78, p.orbitRadius + 6); }
+    } },
+    { id: 'laser', name: 'Pulse Laser', desc: 'Periodic beam at foes', apply: p => {
+      p.laserLevel = (p.laserLevel || 0) + 1;
+      p.laserCdMax = Math.max(1.15, 3.0 - p.laserLevel * 0.3);
+      p.laserDamage = 32 + p.laserLevel * 16;
+      if (p.laserCd <= 0) p.laserCd = 0.6;
+    } },
   ];
 
   function resetPlayer() {
     return {
-      x: WORLD_W / 2, y: WORLD_H / 2,
+      x: 0, y: 0,
       w: 14, h: 22,
       speed: 95,
       hp: 100, maxHp: 100,
@@ -1269,6 +1299,15 @@
       facing: 1,
       moving: false,
       walkFrame: 0,
+      orbitOrbs: 0,
+      orbitRadius: 44,
+      orbitAngle: 0,
+      laserLevel: 0,
+      laserCd: 0,
+      laserCdMax: 3.0,
+      laserDamage: 0,
+      laserTelegraph: 0,
+      laserAng: 0,
     };
   }
 
@@ -1299,8 +1338,7 @@
     }
   }
 
-  // Seeded scatter of trees/bushes across the 2400×2400 meadow.
-  // Keeps a clear radius around world-center spawn so the run starts open.
+  // Infinite meadow props: deterministic per-chunk layout, sliding window around player.
   function mulberry32(seed) {
     let t = seed >>> 0;
     return function () {
@@ -1311,38 +1349,27 @@
     };
   }
 
-  function buildObstacles() {
-    const rand = mulberry32(0x5B07A7E ^ 0x51E); // fixed seed → stable layout
+  function chunkSeed(cx, cy) {
+    return ((cx * 73856093) ^ (cy * 19349663) ^ 0x5B07A7E) >>> 0;
+  }
+
+  function propsForChunk(cx, cy) {
+    const rand = mulberry32(chunkSeed(cx, cy));
     const list = [];
-    const spawnX = WORLD_W / 2, spawnY = WORLD_H / 2;
-    const CLEAR_R = 200;
-    const MIN_GAP = 36;
-    const TARGET = 170;
-
-    function ok(x, y, r) {
-      const dx = x - spawnX, dy = y - spawnY;
-      if (dx * dx + dy * dy < (CLEAR_R + r) * (CLEAR_R + r)) return false;
-      if (x < 48 || y < 48 || x > WORLD_W - 48 || y > WORLD_H - 48) return false;
-      for (const o of list) {
-        const ddx = o.x - x, ddy = o.y - y;
-        const need = o.r + r + MIN_GAP * 0.35;
-        if (ddx * ddx + ddy * ddy < need * need) return false;
-      }
-      return true;
-    }
-
-    let attempts = 0;
-    while (list.length < TARGET && attempts < TARGET * 40) {
-      attempts++;
+    const baseX = cx * PROP_CHUNK;
+    const baseY = cy * PROP_CHUNK;
+    const count = 4 + ((rand() * 5) | 0);
+    for (let i = 0; i < count; i++) {
       const isTree = rand() < 0.55;
-      const x = 60 + rand() * (WORLD_W - 120);
-      const y = 60 + rand() * (WORLD_H - 120);
+      const x = baseX + 24 + rand() * (PROP_CHUNK - 48);
+      const y = baseY + 24 + rand() * (PROP_CHUNK - 48);
+      // Keep origin spawn open (first ~200 px).
+      if (x * x + y * y < 200 * 200) continue;
       if (isTree) {
         const variant = (rand() * treeSprites.length) | 0;
         const r = 8 + (rand() * 3) | 0;
-        if (!ok(x, y, r)) continue;
         list.push({
-          kind: 'tree', x, y, r,
+          kind: 'tree', x, y, r, cx, cy,
           spr: treeSprites[variant],
           ox: treeSprites[variant].width / 2,
           oy: treeSprites[variant].height - 2,
@@ -1350,9 +1377,8 @@
       } else {
         const variant = (rand() * bushSprites.length) | 0;
         const r = 6 + (rand() * 2) | 0;
-        if (!ok(x, y, r)) continue;
         list.push({
-          kind: 'bush', x, y, r,
+          kind: 'bush', x, y, r, cx, cy,
           spr: bushSprites[variant],
           ox: bushSprites[variant].width / 2,
           oy: bushSprites[variant].height - 2,
@@ -1361,7 +1387,24 @@
     }
     return list;
   }
-  obstacles = buildObstacles();
+
+  let propChunkCX = null, propChunkCY = null;
+  function refreshPropsAround(px, py, force) {
+    const cx = Math.floor(px / PROP_CHUNK);
+    const cy = Math.floor(py / PROP_CHUNK);
+    if (!force && propChunkCX === cx && propChunkCY === cy) return;
+    propChunkCX = cx;
+    propChunkCY = cy;
+    const list = [];
+    const k = PROP_KEEP_CHUNKS;
+    for (let dy = -k; dy <= k; dy++) {
+      for (let dx = -k; dx <= k; dx++) {
+        list.push(...propsForChunk(cx + dx, cy + dy));
+      }
+    }
+    obstacles = list;
+  }
+  refreshPropsAround(0, 0, true);
 
   // Circle vs solid trunk/bush core. Projectiles intentionally ignore obstacles (pass through foliage).
   function resolveObstacleCircle(ent, radius) {
@@ -1390,27 +1433,41 @@
     return false;
   }
 
-  function startGame() {
+  function startGame(mode) {
+    if (mode === 'survival' || mode === 'timed') playMode = mode;
+    try { localStorage.setItem('slimeBarrageMode', playMode); } catch (_) {}
     player = resetPlayer();
     enemies = [];
     projectiles = [];
     gems = [];
     particles = [];
     dmgNums = [];
+    lasers = [];
     timeAlive = 0;
     spawnTimer = 0.5;
     killCount = 0;
     flashHurt = 0;
     bossSpawned = false;
     bossAlive = false;
+    propChunkCX = null;
+    propChunkCY = null;
+    refreshPropsAround(player.x, player.y, true);
+    cam.x = player.x - viewWorldW() / 2;
+    cam.y = player.y - viewWorldH() / 2;
     resetStick();
     AudioFX.setBgmDucked(false);
     AudioFX.setBgmTrack('calm', false);
     state = 'PLAYING';
     showOnly('hud');
     syncHud();
+    highlightModeButtons();
     for (let i = 0; i < 8; i++) spawnSlime(true);
     AudioFX.startBgm(true);
+  }
+
+  function highlightModeButtons() {
+    if (el.playSurvivalBtn) el.playSurvivalBtn.classList.toggle('selected', playMode === 'survival');
+    if (el.playTimedBtn) el.playTimedBtn.classList.toggle('selected', playMode === 'timed');
   }
 
   function goMenu() {
@@ -1442,34 +1499,50 @@
     const xpPct = Math.max(0, Math.min(1, player.xp / player.xpNext)) * 100;
     el.xpFill.style.width = xpPct + '%';
     el.xpText.textContent = 'Lv ' + player.level;
-    const remain = Math.max(0, WIN_TIME - timeAlive);
-    el.timer.textContent = formatTime(remain);
+    if (playMode === 'survival') {
+      el.timer.textContent = formatTime(timeAlive);
+      el.timer.title = 'Time survived';
+    } else {
+      const remain = Math.max(0, WIN_TIME_TIMED - timeAlive);
+      el.timer.textContent = formatTime(remain);
+      el.timer.title = 'Time remaining';
+    }
     el.kills.textContent = 'Kills ' + killCount;
   }
 
   // ---------- Spawning ----------
+  function difficultyScale() {
+    // Survival ramps harder; Timed stays closer to the classic mild curve.
+    if (playMode === 'survival') {
+      return 1 + timeAlive / 160 + Math.max(0, timeAlive - 300) / 220;
+    }
+    return 1 + timeAlive / 420;
+  }
+
   function spawnSlime(far = false) {
     const colors = ['mint', 'pink', 'yellow', 'purple'];
     const t = timeAlive;
-    const isKing = t > 45 && Math.random() < 0.06 + Math.min(0.08, t / 600);
+    const scale = difficultyScale();
+    const eliteChance = playMode === 'survival'
+      ? 0.06 + Math.min(0.14, t / 420)
+      : 0.06 + Math.min(0.08, t / 600);
+    const isKing = t > 45 && Math.random() < eliteChance;
     const color = isKing ? 'king' : colors[(Math.random() * colors.length) | 0];
     const ang = Math.random() * Math.PI * 2;
     const dist = far ? 220 + Math.random() * 180 : 280 + Math.random() * 220;
     let x = player.x + Math.cos(ang) * dist;
     let y = player.y + Math.sin(ang) * dist;
-    x = Math.max(40, Math.min(WORLD_W - 40, x));
-    y = Math.max(40, Math.min(WORLD_H - 40, y));
     const spawnR = isKing ? 16 : 10;
     for (let tries = 0; tries < 8 && overlapsObstacle(x, y, spawnR); tries++) {
       const a2 = Math.random() * Math.PI * 2;
       const d2 = dist + tries * 24;
-      x = Math.max(40, Math.min(WORLD_W - 40, player.x + Math.cos(a2) * d2));
-      y = Math.max(40, Math.min(WORLD_H - 40, player.y + Math.sin(a2) * d2));
+      x = player.x + Math.cos(a2) * d2;
+      y = player.y + Math.sin(a2) * d2;
     }
 
-    const baseHp = isKing ? 80 + t * 0.6 : 18 + t * 0.35;
-    const baseSpd = isKing ? 38 : 48 + Math.min(40, t * 0.15);
-    const dmg = isKing ? 18 : 8 + Math.min(10, t * 0.04);
+    const baseHp = (isKing ? 80 + t * 0.6 : 18 + t * 0.35) * scale;
+    const baseSpd = (isKing ? 38 : 48 + Math.min(40, t * 0.15)) * (1 + (scale - 1) * 0.35);
+    const dmg = (isKing ? 18 : 8 + Math.min(10, t * 0.04)) * (1 + (scale - 1) * 0.45);
 
     enemies.push({
       x, y,
@@ -1491,36 +1564,36 @@
 
   function spawnMonarchBoss() {
     const ang = Math.random() * Math.PI * 2;
-    const dist = 260 + Math.random() * 80;
+    const dist = 280 + Math.random() * 90;
     let x = player.x + Math.cos(ang) * dist;
     let y = player.y + Math.sin(ang) * dist;
-    x = Math.max(80, Math.min(WORLD_W - 80, x));
-    y = Math.max(80, Math.min(WORLD_H - 80, y));
-    const spawnR = 36;
+    const spawnR = 48;
     for (let tries = 0; tries < 10 && overlapsObstacle(x, y, spawnR); tries++) {
       const a2 = Math.random() * Math.PI * 2;
       const d2 = dist + tries * 30;
-      x = Math.max(80, Math.min(WORLD_W - 80, player.x + Math.cos(a2) * d2));
-      y = Math.max(80, Math.min(WORLD_H - 80, player.y + Math.sin(a2) * d2));
+      x = player.x + Math.cos(a2) * d2;
+      y = player.y + Math.sin(a2) * d2;
     }
-    const hp = 900 + timeAlive * 2.5;
+    // Tougher + larger Pink-Mint Monarch (v0.9).
+    const scale = difficultyScale();
+    const hp = (2200 + timeAlive * 4.5) * (playMode === 'survival' ? scale : 1);
     enemies.push({
       x, y,
-      r: 36,
+      r: 48,
       color: 'monarch',
       hp, maxHp: hp,
-      speed: 28 + Math.random() * 4,
-      damage: 28,
+      speed: 26 + Math.random() * 4,
+      damage: 34,
       frame: 0,
       frameT: 0,
-      xp: 40,
+      xp: 55,
       isKing: false,
       isBoss: true,
     });
     bossAlive = true;
     AudioFX.setBgmTrack('nightfall', true);
-    addParticles(x, y, '#f5a0c0', 18);
-    addParticles(x, y - 20, '#e8c84a', 10);
+    addParticles(x, y, '#f5a0c0', 22);
+    addParticles(x, y - 24, '#e8c84a', 12);
   }
 
   function spawnDmgNum(x, y, amount) {
@@ -1546,7 +1619,7 @@
     }
     if (!best) return;
     const baseAng = Math.atan2(best.y - player.y, best.x - player.x);
-    const count = player.multishot;
+    const count = Math.min(MULTISHOT_MAX, player.multishot);
     const spread = count > 1 ? 0.22 : 0;
     for (let i = 0; i < count; i++) {
       const off = count === 1 ? 0 : (i - (count - 1) / 2) * spread;
@@ -1581,12 +1654,16 @@
   }
 
   function offerLevelUp() {
-    const pool = UPGRADE_DEFS.slice();
+    let pool = UPGRADE_DEFS.slice();
+    // Hard cap: once multishot hits 6, remove it from the level-up pool.
+    if (player.multishot >= MULTISHOT_MAX) {
+      pool = pool.filter(u => u.id !== 'multi');
+    }
     for (let i = pool.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    upgradeChoices = pool.slice(0, 3);
+    upgradeChoices = pool.slice(0, Math.min(3, pool.length));
     state = 'LEVELUP';
     AudioFX.levelUp();
     el.levelupTitle.textContent = 'LEVEL UP!  Lv ' + player.level;
@@ -1620,11 +1697,28 @@
     state = won ? 'WIN' : 'GAMEOVER';
     AudioFX.stopBgm(true);
     if (won) AudioFX.win(); else AudioFX.death();
-    el.endTitle.textContent = won ? 'YOU SURVIVED!' : 'GAME OVER';
+    const modeLabel = playMode === 'survival' ? 'Survival' : 'Timed';
+    if (won) {
+      el.endTitle.textContent = 'YOU SURVIVED!';
+    } else if (playMode === 'survival') {
+      el.endTitle.textContent = 'RUN ENDED';
+    } else {
+      el.endTitle.textContent = 'GAME OVER';
+    }
     el.endTitle.className = 'panel-title ' + (won ? 'win' : 'lose');
     const score = killCount * 10 + Math.floor(timeAlive) * 2 + player.level * 25;
+    let bestLine = '';
+    if (playMode === 'survival') {
+      if (timeAlive > bestSurvival) {
+        bestSurvival = timeAlive;
+        try { localStorage.setItem('slimeBarrageBestSurvival', String(bestSurvival)); } catch (_) {}
+      }
+      bestLine = '<div>Best  ' + formatTime(bestSurvival) + '</div>';
+    }
     el.endStats.innerHTML =
+      '<div>Mode  ' + modeLabel + '</div>' +
       '<div>Time  ' + formatTime(timeAlive) + '</div>' +
+      bestLine +
       '<div>Kills  ' + killCount + '</div>' +
       '<div>Level  ' + player.level + '</div>' +
       '<div class="score">Score  ' + score + '</div>';
@@ -1633,6 +1727,89 @@
   }
 
   // ---------- Update ----------
+  function nearestEnemyAng() {
+    let best = null, bestD = Infinity;
+    for (const e of enemies) {
+      const d = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    if (!best) return player.facing >= 0 ? 0 : Math.PI;
+    return Math.atan2(best.y - player.y, best.x - player.x);
+  }
+
+  function firePulseLaser() {
+    const ang = nearestEnemyAng();
+    player.laserAng = ang;
+    player.facing = Math.cos(ang) >= 0 ? 1 : -1;
+    const len = 220 + player.laserLevel * 18;
+    const dmg = player.laserDamage;
+    lasers.push({
+      x: player.x, y: player.y - 4,
+      ang, len, life: 0.22, maxLife: 0.22,
+      damage: dmg, width: 5 + player.laserLevel,
+    });
+    // Instant hit-scan along beam
+    for (const e of enemies) {
+      const dx = e.x - player.x, dy = e.y - (player.y - 4);
+      const proj = dx * Math.cos(ang) + dy * Math.sin(ang);
+      if (proj < 0 || proj > len) continue;
+      const px = player.x + Math.cos(ang) * proj;
+      const py = (player.y - 4) + Math.sin(ang) * proj;
+      const ox = e.x - px, oy = e.y - py;
+      if (ox * ox + oy * oy < (e.r + 8) ** 2) {
+        e.hp -= dmg;
+        spawnDmgNum(e.x, e.y - e.r, dmg);
+        addParticles(e.x, e.y, '#7cf0ff', 5);
+      }
+    }
+    AudioFX.shoot();
+    addParticles(player.x + Math.cos(ang) * 20, player.y + Math.sin(ang) * 20, '#a0f0ff', 6);
+  }
+
+  function updateOrbitOrbs(dt) {
+    if (!player.orbitOrbs) return;
+    player.orbitAngle = (player.orbitAngle || 0) + dt * 2.6;
+    const n = player.orbitOrbs;
+    const rad = player.orbitRadius || 44;
+    for (let i = 0; i < n; i++) {
+      const a = player.orbitAngle + (i / n) * Math.PI * 2;
+      const ox = player.x + Math.cos(a) * rad;
+      const oy = player.y + Math.sin(a) * rad;
+      for (const e of enemies) {
+        const dx = e.x - ox, dy = e.y - oy;
+        if (dx * dx + dy * dy < (e.r + 9) ** 2) {
+          const tick = 18 + player.level * 0.6;
+          // soft per-frame damage; throttle via orbHit timer on enemy
+          if (!e._orbHit || e._orbHit <= 0) {
+            e.hp -= tick;
+            e._orbHit = 0.18;
+            spawnDmgNum(e.x, e.y - e.r, tick);
+            addParticles(ox, oy, '#c4b0e8', 3);
+            AudioFX.hit();
+          }
+        }
+      }
+    }
+    for (const e of enemies) {
+      if (e._orbHit > 0) e._orbHit -= dt;
+    }
+  }
+
+  function cleanupFarEntities() {
+    const lim2 = CLEANUP_DIST * CLEANUP_DIST;
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      if (e.isBoss) continue;
+      const dx = e.x - player.x, dy = e.y - player.y;
+      if (dx * dx + dy * dy > lim2) enemies.splice(i, 1);
+    }
+    for (let i = gems.length - 1; i >= 0; i--) {
+      const g = gems[i];
+      const dx = g.x - player.x, dy = g.y - player.y;
+      if (dx * dx + dy * dy > lim2) gems.splice(i, 1);
+    }
+  }
+
   function update(dt) {
     animT += dt;
     menuPulse += dt;
@@ -1642,7 +1819,7 @@
     if (flashHurt > 0) flashHurt -= dt;
     if (player.invuln > 0) player.invuln -= dt;
 
-    if (timeAlive >= WIN_TIME) {
+    if (playMode === 'timed' && timeAlive >= WIN_TIME_TIMED) {
       showEnd(true);
       return;
     }
@@ -1663,23 +1840,43 @@
       if (mx !== 0) player.facing = mx > 0 ? 1 : -1;
       player.walkFrame += dt * 8;
     }
-    player.x = Math.max(20, Math.min(WORLD_W - 20, player.x));
-    player.y = Math.max(20, Math.min(WORLD_H - 20, player.y));
+    // Infinite map: no world-edge clamps — only local prop collision.
     resolveObstacleCircle(player, 7);
-    player.x = Math.max(20, Math.min(WORLD_W - 20, player.x));
-    player.y = Math.max(20, Math.min(WORLD_H - 20, player.y));
+    refreshPropsAround(player.x, player.y, false);
 
     const vw = viewWorldW(), vh = viewWorldH();
     cam.x = player.x - vw / 2;
     cam.y = player.y - vh / 2;
-    cam.x = Math.max(0, Math.min(WORLD_W - vw, cam.x));
-    cam.y = Math.max(0, Math.min(WORLD_H - vh, cam.y));
+    // Camera follows freely (no finite WORLD clamp).
 
     player.fireCd -= dt;
     if (player.fireCd <= 0) {
       fireAtNearest();
       player.fireCd = player.fireCdMax;
     }
+
+    // Pulse Laser: telegraph then beam
+    if (player.laserLevel > 0) {
+      if (player.laserTelegraph > 0) {
+        player.laserTelegraph -= dt;
+        player.laserAng = nearestEnemyAng();
+        if (player.laserTelegraph <= 0) {
+          firePulseLaser();
+          player.laserCd = player.laserCdMax;
+        }
+      } else {
+        player.laserCd -= dt;
+        if (player.laserCd <= 0) {
+          player.laserTelegraph = 0.35;
+          player.laserAng = nearestEnemyAng();
+        }
+      }
+    }
+    for (let i = lasers.length - 1; i >= 0; i--) {
+      lasers[i].life -= dt;
+      if (lasers[i].life <= 0) lasers.splice(i, 1);
+    }
+    updateOrbitOrbs(dt);
 
     if (!bossSpawned && timeAlive >= BOSS_SPAWN_AT) {
       bossSpawned = true;
@@ -1688,14 +1885,19 @@
 
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
-      const density = 1 + Math.floor(timeAlive / 20);
-      const n = Math.min(6, density + (Math.random() * 2) | 0);
+      const scale = difficultyScale();
+      const density = 1 + Math.floor(timeAlive / (playMode === 'survival' ? 14 : 20));
+      const n = Math.min(playMode === 'survival' ? 8 : 6, density + (Math.random() * 2) | 0);
       spawnBurst(n);
-      const interval = Math.max(0.55, 1.8 - timeAlive * 0.008);
+      const baseInt = playMode === 'survival' ? 1.55 : 1.8;
+      const ramp = playMode === 'survival' ? 0.012 : 0.008;
+      const interval = Math.max(playMode === 'survival' ? 0.38 : 0.55, baseInt - timeAlive * ramp) / Math.min(1.6, scale);
       spawnTimer = interval;
-      if (enemies.length > 120) {
+      cleanupFarEntities();
+      const cap = playMode === 'survival' ? 140 : 120;
+      if (enemies.length > cap) {
         // Prefer dropping non-boss fodder so the Monarch is never culled.
-        let need = enemies.length - 120;
+        let need = enemies.length - cap;
         for (let i = 0; i < enemies.length && need > 0; ) {
           if (enemies[i].isBoss) { i++; continue; }
           enemies.splice(i, 1);
@@ -1913,9 +2115,9 @@
     const oy = fr.height - 2;
     blit(ctx, fr, s.x - ox, s.y - oy);
     if (e.isBoss || e.isKing || e.hp < e.maxHp) {
-      const bw = e.isBoss ? 42 : (e.isKing ? 22 : 14);
+      const bw = e.isBoss ? 56 : (e.isKing ? 22 : 14);
       const bh = e.isBoss ? 5 : 3;
-      const by = s.y - oy - (e.isBoss ? 8 : 5);
+      const by = s.y - oy - (e.isBoss ? 10 : 5);
       ctx.fillStyle = '#1a1020';
       ctx.fillRect(s.x - bw / 2, by, bw, bh);
       ctx.fillStyle = e.isBoss ? '#f5a0c0' : (e.isKing ? '#e8c84a' : '#7dcea0');
@@ -1939,6 +2141,67 @@
     for (const it of items) it.draw();
   }
 
+
+  function drawOrbitAndLaser() {
+    if (player && player.orbitOrbs > 0) {
+      const n = player.orbitOrbs;
+      const rad = player.orbitRadius || 44;
+      for (let i = 0; i < n; i++) {
+        const a = (player.orbitAngle || 0) + (i / n) * Math.PI * 2;
+        const wx = player.x + Math.cos(a) * rad;
+        const wy = player.y + Math.sin(a) * rad;
+        const s = worldToScreen(wx, wy);
+        ctx.beginPath();
+        ctx.fillStyle = '#c4b0e8';
+        ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(s.x - 1, s.y - 1, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(160,120,220,0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 7, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    if (player && player.laserTelegraph > 0) {
+      const ang = player.laserAng || 0;
+      const len = 200;
+      const s0 = worldToScreen(player.x, player.y - 4);
+      const s1 = worldToScreen(player.x + Math.cos(ang) * len, player.y - 4 + Math.sin(ang) * len);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 120, 160, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(s0.x, s0.y);
+      ctx.lineTo(s1.x, s1.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (const L of lasers) {
+      const s0 = worldToScreen(L.x, L.y);
+      const s1 = worldToScreen(L.x + Math.cos(L.ang) * L.len, L.y + Math.sin(L.ang) * L.len);
+      const a = Math.max(0, L.life / L.maxLife);
+      ctx.save();
+      ctx.strokeStyle = `rgba(120, 230, 255, ${0.35 + a * 0.55})`;
+      ctx.lineWidth = L.width + 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(s0.x, s0.y);
+      ctx.lineTo(s1.x, s1.y);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + a * 0.5})`;
+      ctx.lineWidth = Math.max(2, L.width * 0.45);
+      ctx.beginPath();
+      ctx.moveTo(s0.x, s0.y);
+      ctx.lineTo(s1.x, s1.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
 
   function drawProjectiles() {
     for (const p of projectiles) {
@@ -2017,6 +2280,7 @@
         drawNightGrass();
         drawGems();
         drawSortedWorld();
+        drawOrbitAndLaser();
         drawProjectiles(); // sparks pass through foliage; drawn above for readability
         drawParticles();
         drawDmgNums();
@@ -2047,19 +2311,23 @@
 
   // Init overlay state
   showOnly('menu');
+  highlightModeButtons();
 
   window.__slimeBarrage = {
     startGame,
     goMenu,
     getState: () => state,
     getCanvas: () => canvas,
-    VERSION,
-    VIEW_ZOOM,
+    get VERSION() { return VERSION; },
+    get VIEW_ZOOM() { return VIEW_ZOOM; },
+    get playMode() { return playMode; },
     BOSS_SPAWN_AT,
+    WIN_TIME_TIMED,
+    MULTISHOT_MAX,
     togglePause,
     spawnMonarchBoss,
-    forcePlaySeconds: (sec) => {
-      startGame();
+    forcePlaySeconds: (sec, mode) => {
+      startGame(mode || playMode);
       for (let i = 0; i < 25; i++) spawnSlime(true);
       for (let i = 0; i < 12; i++) {
         const a = (i / 12) * Math.PI * 2;
@@ -2092,5 +2360,30 @@
       if (state !== 'PLAYING') startGame();
       offerLevelUp();
     },
+    getDebug: () => player ? ({
+      x: player.x, y: player.y,
+      multishot: player.multishot,
+      orbitOrbs: player.orbitOrbs,
+      laserLevel: player.laserLevel,
+      mode: playMode,
+      timeAlive,
+      enemies: enemies.length,
+      boss: enemies.find(e => e.isBoss) ? { r: enemies.find(e => e.isBoss).r, hp: enemies.find(e => e.isBoss).hp, dmg: enemies.find(e => e.isBoss).damage } : null,
+      cam: { x: cam.x, y: cam.y },
+      zoom: VIEW_ZOOM,
+      obstacles: obstacles.length,
+    }) : null,
+    applyUpgradeId: (id) => {
+      const u = UPGRADE_DEFS.find(d => d.id === id);
+      if (u && player) u.apply(player);
+    },
+    setPlayerPos: (x, y) => {
+      if (!player) return;
+      player.x = x; player.y = y;
+      refreshPropsAround(x, y, true);
+      cam.x = player.x - viewWorldW() / 2;
+      cam.y = player.y - viewWorldH() / 2;
+    },
+    offerLevelUp,
   };
 })();

@@ -68,3 +68,15 @@ Same original notes/hooks as battle preview — **not** Night of Nights / ZUN / 
 - BGM: calm early = `assets/bgm-moonlit-calm.mp3`; boss = `assets/bgm-nightfall.mp3`; procedural fallback if HTMLAudio fails.
 - Mid-run boss at `BOSS_SPAWN_AT = 150` (once per run). Nightfall while alive, calm after defeat/end.
 - Floating stick + soft damage numbers.
+
+
+---
+
+# v0.9 ship notes (2026-09-26)
+
+- Portrait zoom `VIEW_ZOOM_PORTRAIT = 1.55`, landscape `VIEW_ZOOM_LANDSCAPE = 1.05` (live `VIEW_ZOOM` on resize).
+- Infinite map: chunk props (`PROP_CHUNK = 360`), no player/cam world clamps, `CLEANUP_DIST` cull.
+- Modes: Survival (ramp) + Timed (`WIN_TIME_TIMED = 360`). `localStorage` key `slimeBarrageMode`.
+- Boss: Monarch frames 64px, r=48, HP ~2200+, damage 34; spawn still `BOSS_SPAWN_AT = 150`.
+- Upgrades: Orbit Guard, Pulse Laser; Multishot capped at 6 (filtered from pool).
+- Keep floating stick, soft dmg nums, calm/Nightfall BGM from v0.8. No portrait cover-fill UI zoom.
