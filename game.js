@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v0.5
+ * Slime Barrage v0.6
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * Procedural Web Audio SFX + original GB-inspired BGM (no copyrighted audio).
@@ -8,10 +8,15 @@
   'use strict';
 
   // ---------- Config ----------
-  const W = 480, H = 270;
+  // Mutable view size: landscape stays classic 480×270; portrait grows taller
+  // so width-fit scale fills the phone with no letterbars / no side crop.
+  const BASE_W = 480, BASE_H = 270;
+  let W = BASE_W, H = BASE_H;
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME = 180; // 3 minutes
-  const VERSION = 'v0.5';
+  const VERSION = 'v0.6';
+  const VIEW_H_MIN = 270;
+  const VIEW_H_MAX = 1200;
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -40,21 +45,43 @@
     endStats: document.getElementById('endStats'),
   };
 
-  // Contain CSS size; canvas stays 480×270 + pixelated.
-  // Portrait: width-fit (fill phone width, letterbox top/bottom) — no cover-crop.
-  // Landscape: integer contain when it uses the viewport well; else fractional
-  // contain. Tiny cover only when crop would be < ~4%.
-  // --ui-scale is a *comfortable* clamp of display scale (not raw cover zoom).
-  // --ui-pad-* only when actually cropping so HUD/menu stay on-screen.
-  function fitCanvas() {
-    const vw = window.innerWidth || document.documentElement.clientWidth || W;
-    const vh = window.innerHeight || document.documentElement.clientHeight || H;
+  // Resize internal view to match viewport aspect, then CSS-size the box to fill.
+  // Portrait: keep W=480, grow H so width-fit fills the phone (no letterbars,
+  // no side crop). Landscape: classic 480×270 for stability.
+  // --ui-scale stays the v0.5 comfortable clamp (not raw cover zoom).
+  function resizeView(vw, vh) {
     const isPortrait = vh > vw;
+    let nextW, nextH;
+    if (isPortrait) {
+      nextW = BASE_W;
+      nextH = Math.round(BASE_W * vh / vw);
+      nextH = Math.max(VIEW_H_MIN, Math.min(VIEW_H_MAX, nextH));
+    } else {
+      nextW = BASE_W;
+      nextH = BASE_H;
+    }
+    if (nextW === W && nextH === H && canvas.width === W && canvas.height === H) {
+      return;
+    }
+    W = nextW;
+    H = nextH;
+    canvas.width = W;
+    canvas.height = H;
+    ctx.imageSmoothingEnabled = false;
+  }
+
+  function fitCanvas() {
+    const vw = window.innerWidth || document.documentElement.clientWidth || BASE_W;
+    const vh = window.innerHeight || document.documentElement.clientHeight || BASE_H;
+    const isPortrait = vh > vw;
+
+    resizeView(vw, vh);
+
     let scale;
     let covering = false;
 
     if (isPortrait) {
-      // Width-fit contain: full 480 playfield width, black bars top/bottom OK.
+      // Aspects match → width-fit fills viewport (pads ~0).
       scale = vw / W;
     } else {
       const containScale = Math.min(vw / W, vh / H);
@@ -108,6 +135,7 @@
     uiRoot.style.setProperty('--ui-pad-y', padY + 'px');
   }
   window.addEventListener('resize', fitCanvas);
+  window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 50));
   fitCanvas();
 
   // ---------- Audio (procedural Web Audio API) ----------
@@ -1178,16 +1206,20 @@
     ctx.fillStyle = '#0c121c';
     ctx.fillRect(0, 0, W, H);
     const cols = ['mint', 'pink', 'yellow', 'purple'];
-    for (let i = 0; i < 10; i++) {
+    const decoCount = Math.max(10, Math.min(22, Math.round(10 * H / BASE_H)));
+    const band = Math.max(60, (H - 100) / 3);
+    for (let i = 0; i < decoCount; i++) {
       const c = cols[i % 4];
       const fr = slimeFrames[c][Math.floor(animT * 4 + i) % 4];
       const x = 30 + (i * 47) % (W - 40);
-      const y = 40 + Math.sin(animT * 1.5 + i) * 8 + (i % 3) * 60;
+      const y = 40 + Math.sin(animT * 1.5 + i) * 8 + (i % 3) * band;
       ctx.globalAlpha = 0.55;
       blit(ctx, fr, x, y);
       ctx.globalAlpha = 1;
     }
-    blit(ctx, heroFront, W / 2 - 20, 70, 40, 56);
+    // Keep hero near the visual center of the taller playfield.
+    const heroY = Math.max(70, Math.min(H - 120, Math.round(H * 0.26)));
+    blit(ctx, heroFront, W / 2 - 20, heroY, 40, 56);
   }
 
   function draw() {

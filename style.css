@@ -20,7 +20,7 @@ html, body {
   background: #000;
 }
 
-/* Sized by JS (contain; fractional OK). Overflow only clips rare tiny-cover. */
+/* Sized by JS to match view aspect (portrait full-bleed). Overflow clips rare tiny-cover. */
 #gameBox {
   position: relative;
   width: 480px;
@@ -359,7 +359,7 @@ html, body {
   pointer-events: none;
 }
 
-/* Portrait: slightly tighter HUD / panel text so the 16:9 strip stays readable */
+/* Portrait: slightly tighter HUD / panel text on phones */
 @media (orientation: portrait) and (max-width: 520px) {
   #ui { font-size: calc(9.5px * var(--ui-scale, 1)); }
   .panel { gap: 0.28em; padding: 1.5% 2.5%; }

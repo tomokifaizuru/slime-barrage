@@ -1,4 +1,4 @@
-# Slime Barrage v0.5
+# Slime Barrage v0.6
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across a night grass field while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and survive **3:00**.
 
@@ -35,9 +35,14 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot, Pierce Shot, Snack Break (heal).
 
+## What’s new in v0.6
+
+- **Portrait map fills the screen (taller playfield, same calm UI)**: internal view grows with phone aspect (`viewW = 480`, `viewH = clamp(round(480·vh/vw), 270, 1200)`). Width-fit scale then full-bleeds — no letterbars, no side crop. Camera shows more world vertically. `--ui-scale` clamp + logo max from v0.5 stay so HUD/logo stay calm (not the old cover-crop zoom that made UI huge).
+- Landscape stays classic **480×270** for stability.
+
 ## What’s new in v0.5
 
-- **Phone layout — width-fit + calmer UI (less cramped)**: portrait uses width-fit contain (`scale = vw/480`) so the full 480×270 playfield is visible with small letterbars top/bottom instead of cover-crop zoom. `--ui-scale` is clamped for readable (not giant) HUD/menu/logo; logo capped at ~85vw / 320px.
+- **Phone layout — width-fit + calmer UI (less cramped)**: portrait used width-fit contain (`scale = vw/480`) so the full 480×270 playfield was visible with small letterbars top/bottom instead of cover-crop zoom. `--ui-scale` clamped for readable (not giant) HUD/menu/logo; logo capped at ~85vw / 320px. (Superseded for the letterbars by v0.6’s taller playfield; UI clamp kept.)
 - Landscape keeps integer contain when it fits well, otherwise fractional contain; tiny cover only if crop &lt; ~4%.
 
 ## What’s new in v0.4
@@ -52,7 +57,7 @@ Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP)
 
 ## What’s new in v0.2
 
-- **Crisp UI text**: canvas keeps pixel world sprites at fixed 480×270 with integer CSS scale + `image-rendering: pixelated`; menus, HUD, and level-up cards are HTML/CSS overlays (system fonts, no upscaled 8px canvas text).
+- **Crisp UI text**: canvas keeps pixel world sprites at view resolution (480×270 landscape; taller in portrait) with CSS scale + `image-rendering: pixelated`; menus, HUD, and level-up cards are HTML/CSS overlays (system fonts, no upscaled 8px canvas text).
 - **Procedural SFX** via Web Audio API (shoot, hit, kill, XP, level-up, hurt, death, win, UI click). Mute toggle remembers preference in `localStorage`. No copyrighted Hololive/Holocure audio.
 
 ## Files
@@ -60,10 +65,10 @@ Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP)
 ```
 index.html   — shell + HTML overlays + favicons
 style.css    — contain layout, logo cap, crisp UI, touch stick
-game.js      — game + procedural sprites + SFX + BGM + fitCanvas width-fit
+game.js      — game + procedural sprites + SFX + BGM + taller portrait view
 assets/      — logo, favicons, art references
 README.md
-preview-v02.png / preview-v05-phone.png
+preview-v02.png / preview-v05-phone.png / preview-v06-phone.png
 ```
 
 Sprites are drawn procedurally in canvas (hoodie girl + mint/pink/yellow/purple slimes + crowned king slime) for a tiny footprint.
