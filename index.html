@@ -6,10 +6,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Slime Barrage" />
   <title>Slime Barrage v1.0</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v10" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v10" />
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v10" />
-  <link rel="stylesheet" href="style.css?v=v10" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v10b" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v10b" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v10b" />
+  <link rel="stylesheet" href="style.css?v=v10b" />
 </head>
 <body>
   <div id="stage">
@@ -68,8 +68,8 @@
             <button type="button" id="muteBtnMenu" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
           </div>
           <button type="button" id="ranksBtn" class="btn ranks-btn">RANKINGS</button>
-          <p class="hint">v1.0 · WASD / Arrows to move · auto-fires · Wipe skill on the side</p>
-          <p class="hint">Orbit · Pulse Laser (L6 gold) · Omni Beam · Multishot max 7</p>
+          <p class="hint">v1.0 (rebuild) · WASD / Arrows · auto-fires · Wipe (starts on CD)</p>
+          <p class="hint">Orbit · Fairy · Laser L6→Omni · Multi 7 · Pierce 6 · HP cap 200</p>
           <p class="hint score-hint">Ranks: local device top 10 · Survival (time×5+kills×12+lv×20) · Timed (kills×10+time×2+lv×25)</p>
         </div>
 
@@ -95,6 +95,7 @@
         <div id="levelup" class="panel dim hidden">
           <h2 id="levelupTitle" class="panel-title">LEVEL UP!</h2>
           <p class="panel-sub">Pick an upgrade (1 / 2 / 3 or tap)</p>
+          <div id="levelupStatus" class="levelup-status" aria-live="polite"></div>
           <div id="cards" class="cards"></div>
         </div>
 
@@ -135,7 +136,7 @@
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js?v=v10"></script>
+  <script src="game.js?v=v10b"></script>
 
 </body>
 </html>

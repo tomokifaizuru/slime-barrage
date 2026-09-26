@@ -1,4 +1,4 @@
-# Slime Barrage v1.0
+# Slime Barrage v1.0 (rebuild)
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **survive as long as you can** or **win Timed at 6:00**.
 
@@ -40,7 +40,9 @@ Last mode is remembered in `localStorage`.
 
 ### Upgrades (pick 1 of 3 on level up)
 
-Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot (**max 7** — removed from pool at cap), Pierce Shot, Snack Break (heal), **Orbit Guard**, **Pulse Laser** (2.0s→0.75s, **L6 gold glitter**), **Omni Beam** (special 8/12-way burst).
+Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP **cap 200**), Gem Magnet, Multishot (**max 7**), Pierce Shot (**max 6**), Snack Break (heal), **Orbit Guard**, **Orbiting Fairy** (max 5), **Pulse Laser** (2.0s→0.75s, **L6 gold glitter**), **Omni Beam** (special 8/12-way burst — **only after Laser 6**).
+
+Maxed skills still appear as **dimmed / unclickable** cards; the pool prefers available upgrades first. Level-up panel shows current weapon/skill levels above the cards.
 
 ### XP gems
 
@@ -59,13 +61,16 @@ Local **Survival | Timed** boards (top 10 each) on the menu **RANKINGS** panel a
 
 Online shared boards can plug in later; v1.0 ships solid **local device** ranks.
 
-## What’s new in v1.0
+## What’s new in v1.0 (rebuild)
 
-- Mob pace: **85%** chase speed at run start, +1%/min of baseline → **100% at minute 15**.
-- XP gem tiers: blue / purple / **triple gold** (Monarch).
-- Multishot max **7**; Pulse Laser L1–L6 (gold glitter at 6); **Omni Beam** special.
-- **Wipe** side skill (120s CD) — clears non-boss mobs and drops their gems.
-- Side-by-side **local rankings** (Survival | Timed).
+- Omni Beam **gated** until Pulse Laser is level 6; Omni still stacks after unlock (max 3).
+- New skill: **Orbiting Fairy** (cute orbiting sprite, low-dmg single-target snipes, max 5).
+- Level-up HUD chips show Multi / Pierce / Laser / Orbit / Omni / Fairy / HP.
+- Start **100 HP**, max HP upgrades cap at **200**; **+1 HP regen every 2s** while playing.
+- Pierce hard cap **6**; maxed cards **dimmed but still appear** (prefer fill with available).
+- Wipe starts on **full 120s cooldown** (not ready at run start).
+- Monarch **bigger** (r=72, 96px frames) and **HP ×10**.
+- Mob pace / XP gem tiers / Multishot 7 / Laser L6 gold / local rankings from prior v1.0.
 
 ## What’s new in v0.9
 

@@ -5,8 +5,9 @@
  * HTMLAudio BGM (Moonlit calm / Nightfall boss) with procedural fallback.
  * Mid-run Pink-Mint Monarch boss, floating touch stick, soft damage numbers.
  * Portrait/landscape world zoom, infinite meadow, Survival + Timed modes.
- * Orbit Guard, Pulse Laser (L6 gold), Omni Beam, Wipe skill, XP gem tiers.
- * Multishot max 7; mob pace ramp; local Survival|Timed rankings.
+ * Orbit Guard, Pulse Laser (L6 gold), Omni Beam (after Laser 6), Orbiting Fairy.
+ * Wipe skill, XP gem tiers, HP regen, dimmed-max cards, tougher Monarch.
+ * Multishot max 7; Pierce max 6; Max HP 200; mob pace ramp; local rankings.
  */
 (() => {
   'use strict';
@@ -28,8 +29,13 @@
   const VIEW_ZOOM_LANDSCAPE = 1.05;
   let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
   const MULTISHOT_MAX = 7;
+  const PIERCE_MAX = 6;
   const LASER_MAX_LEVEL = 6;
   const OMNI_MAX_LEVEL = 3;
+  const FAIRY_MAX = 5;
+  const ORBIT_MAX = 8; // orb count cap (first pick grants 2)
+  const MAX_HP_CAP = 200;
+  const HP_REGEN_INTERVAL = 2; // +1 HP every 2s while PLAYING
   const WIPE_COOLDOWN = 120;
   const MOB_SPEED_START = 0.85; // −15% at run start vs baseline
   const MOB_SPEED_RAMP = 0.01;  // +1% of baseline per minute → 100% at min 15
@@ -75,6 +81,7 @@
     kills: document.getElementById('kills'),
     cards: document.getElementById('cards'),
     levelupTitle: document.getElementById('levelupTitle'),
+    levelupStatus: document.getElementById('levelupStatus'),
     endTitle: document.getElementById('endTitle'),
     endStats: document.getElementById('endStats'),
     wipeBtn: document.getElementById('wipeBtn'),
@@ -1242,13 +1249,39 @@
     yellow: makeSlimeFrames(slimePalettes.yellow, 16),
     purple: makeSlimeFrames(slimePalettes.purple, 16),
     king: makeSlimeFrames(slimePalettes.mint, 22, true),
-    monarch: makeMonarchFrames(64),
+    monarch: makeMonarchFrames(96),
   };
 
   const projSprite = makeSprite(6, 6, (g) => {
     fillRect(g, 2, 0, 2, 6, '#ffe8a0');
     fillRect(g, 0, 2, 6, 2, '#ffe8a0');
     fillRect(g, 2, 2, 2, 2, '#ffffff');
+  });
+  // Tiny cute fairy (distinct from Orbit Guard orbs): dress + wings + glow hair.
+  const fairySprite = makeSprite(12, 14, (g) => {
+    // wings
+    fillRect(g, 0, 4, 3, 5, 'rgba(200,255,240,0.85)');
+    fillRect(g, 9, 4, 3, 5, 'rgba(200,255,240,0.85)');
+    fillRect(g, 1, 3, 2, 2, '#e8fff8');
+    fillRect(g, 9, 3, 2, 2, '#e8fff8');
+    // dress / body
+    fillRect(g, 4, 5, 4, 6, '#f7a0c0');
+    fillRect(g, 3, 9, 6, 3, '#e878a8');
+    // head + hair
+    fillRect(g, 4, 2, 4, 4, '#ffe0c0');
+    fillRect(g, 3, 1, 6, 2, '#ffe060');
+    fillRect(g, 4, 0, 4, 2, '#fff0a0');
+    // eyes
+    fillRect(g, 5, 3, 1, 1, '#2a1830');
+    fillRect(g, 7, 3, 1, 1, '#2a1830');
+    // sparkle
+    fillRect(g, 1, 1, 1, 1, '#ffffff');
+    fillRect(g, 10, 2, 1, 1, '#ffffff');
+  });
+  const fairyBoltSprite = makeSprite(4, 4, (g) => {
+    fillRect(g, 1, 0, 2, 4, '#ffb0e0');
+    fillRect(g, 0, 1, 4, 2, '#ffe0f4');
+    fillRect(g, 1, 1, 2, 2, '#ffffff');
   });
   function makeGemSprite(c1, c2, c3, size = 8) {
     return makeSprite(size, size, (g) => {
@@ -1334,14 +1367,22 @@
     { id: 'dmg', name: 'Sharp Spark', desc: '+25% projectile damage', apply: p => { p.damage = Math.round(p.damage * 1.25); } },
     { id: 'rate', name: 'Rapid Fire', desc: '+20% fire rate', apply: p => { p.fireCdMax = Math.max(0.12, p.fireCdMax * 0.8); } },
     { id: 'spd', name: 'Sneaker Boost', desc: '+15% move speed', apply: p => { p.speed *= 1.15; } },
-    { id: 'hp', name: 'Hoodie Padding', desc: '+20 max HP & heal 20', apply: p => { p.maxHp += 20; p.hp = Math.min(p.maxHp, p.hp + 20); } },
+    { id: 'hp', name: 'Hoodie Padding', desc: '+20 max HP & heal 20 (cap 200)', apply: p => {
+      if (p.maxHp >= MAX_HP_CAP) return;
+      const add = Math.min(20, MAX_HP_CAP - p.maxHp);
+      p.maxHp += add;
+      p.hp = Math.min(p.maxHp, p.hp + add);
+    } },
     { id: 'magnet', name: 'Gem Magnet', desc: '+40% pickup range', apply: p => { p.magnet *= 1.4; } },
     { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 7)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
-    { id: 'pierce', name: 'Pierce Shot', desc: 'Projectiles pierce +1', apply: p => { p.pierce += 1; } },
+    { id: 'pierce', name: 'Pierce Shot', desc: 'Projectiles pierce +1 (max 6)', apply: p => { p.pierce = Math.min(PIERCE_MAX, p.pierce + 1); } },
     { id: 'heal', name: 'Snack Break', desc: 'Restore 40 HP', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
     { id: 'orbit', name: 'Orbit Guard', desc: 'Shield orbs spin & smash', apply: p => {
       if (!p.orbitOrbs) { p.orbitOrbs = 2; p.orbitRadius = 44; }
-      else { p.orbitOrbs += 1; p.orbitRadius = Math.min(78, p.orbitRadius + 6); }
+      else if (p.orbitOrbs < ORBIT_MAX) {
+        p.orbitOrbs += 1;
+        p.orbitRadius = Math.min(78, p.orbitRadius + 6);
+      }
     } },
     { id: 'laser', name: 'Pulse Laser', desc: 'Beam clock: 2.0s → 0.75s (max 6)', apply: p => {
       p.laserLevel = Math.min(LASER_MAX_LEVEL, (p.laserLevel || 0) + 1);
@@ -1350,12 +1391,22 @@
       p.laserDamage = 32 + p.laserLevel * 16 + (p.laserLevel >= LASER_MAX_LEVEL ? 24 : 0);
       if (p.laserCd <= 0) p.laserCd = 0.5;
     } },
-    { id: 'omni', name: 'Omni Beam', desc: 'SPECIAL · 8-way ray burst', special: true, apply: p => {
+    { id: 'omni', name: 'Omni Beam', desc: 'SPECIAL · needs Laser 6 · 8-way burst', special: true, apply: p => {
+      if ((p.laserLevel || 0) < LASER_MAX_LEVEL) return;
       p.omniLevel = Math.min(OMNI_MAX_LEVEL, (p.omniLevel || 0) + 1);
       p.omniCdMax = Math.max(2.4, 5.0 - p.omniLevel * 0.6);
       p.omniDamage = 20 + p.omniLevel * 14;
       p.omniRays = p.omniLevel >= 3 ? 12 : 8;
       if (p.omniCd <= 0) p.omniCd = 1.0;
+    } },
+    { id: 'fairy', name: 'Orbiting Fairy', desc: 'Cute fairy orbits & snipes (max 5)', apply: p => {
+      p.fairyLevel = Math.min(FAIRY_MAX, (p.fairyLevel || 0) + 1);
+      // 1→2→3 fairies by L1/L2/L3; L4–L5 boost rate & damage
+      p.fairyCount = Math.min(3, p.fairyLevel);
+      p.fairyDamage = 3 + p.fairyLevel * 1.5; // ~4.5 … 10.5 (modest vs main gun)
+      p.fairyCdMax = Math.max(0.18, 0.42 - (p.fairyLevel - 1) * 0.045);
+      p.fairyRadius = 52 + Math.min(18, (p.fairyLevel - 1) * 4);
+      if (p.fairyCd <= 0) p.fairyCd = 0.3;
     } },
   ];
 
@@ -1400,6 +1451,14 @@
       omniDamage: 0,
       omniRays: 8,
       omniTelegraph: 0,
+      fairyLevel: 0,
+      fairyCount: 0,
+      fairyCd: 0,
+      fairyCdMax: 0.4,
+      fairyDamage: 0,
+      fairyRadius: 52,
+      fairyAngle: 0,
+      hpRegenAcc: 0,
     };
   }
 
@@ -1542,7 +1601,7 @@
     flashHurt = 0;
     bossSpawned = false;
     bossAlive = false;
-    wipeCd = 0;
+    wipeCd = WIPE_COOLDOWN; // not ready at run start — full 120s CD first
     propChunkCX = null;
     propChunkCY = null;
     refreshPropsAround(player.x, player.y, true);
@@ -1676,20 +1735,20 @@
     const dist = 280 + Math.random() * 90;
     let x = player.x + Math.cos(ang) * dist;
     let y = player.y + Math.sin(ang) * dist;
-    const spawnR = 48;
+    const spawnR = 72;
     for (let tries = 0; tries < 10 && overlapsObstacle(x, y, spawnR); tries++) {
       const a2 = Math.random() * Math.PI * 2;
       const d2 = dist + tries * 30;
       x = player.x + Math.cos(a2) * d2;
       y = player.y + Math.sin(a2) * d2;
     }
-    // Tougher + larger Pink-Mint Monarch (v0.9).
+    // v1.0 rebuild: noticeably bigger Monarch + 10× HP vs prior formula.
     const scale = difficultyScale();
-    const hp = (2200 + timeAlive * 4.5) * (playMode === 'survival' ? scale : 1);
+    const hp = (2200 + timeAlive * 4.5) * 10 * (playMode === 'survival' ? scale : 1);
     const bossSpd = 26 + Math.random() * 4;
     enemies.push({
       x, y,
-      r: 48,
+      r: 72,
       color: 'monarch',
       hp, maxHp: hp,
       baseSpeed: bossSpd,
@@ -1790,29 +1849,88 @@
     }
   }
 
-  function offerLevelUp() {
-    let pool = UPGRADE_DEFS.slice();
-    if (player.multishot >= MULTISHOT_MAX) pool = pool.filter(u => u.id !== 'multi');
-    if ((player.laserLevel || 0) >= LASER_MAX_LEVEL) pool = pool.filter(u => u.id !== 'laser');
-    if ((player.omniLevel || 0) >= OMNI_MAX_LEVEL) pool = pool.filter(u => u.id !== 'omni');
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = (Math.random() * (i + 1)) | 0;
-      [pool[i], pool[j]] = [pool[j], pool[i]];
+  /** Omni stays out of the pool until Pulse Laser is maxed (L6). */
+  function upgradeEligible(u) {
+    if (u.id === 'omni' && (player.laserLevel || 0) < LASER_MAX_LEVEL) return false;
+    return true;
+  }
+
+  function isUpgradeMaxed(u) {
+    if (!player) return false;
+    switch (u.id) {
+      case 'multi': return player.multishot >= MULTISHOT_MAX;
+      case 'pierce': return (player.pierce || 0) >= PIERCE_MAX;
+      case 'laser': return (player.laserLevel || 0) >= LASER_MAX_LEVEL;
+      case 'omni': return (player.omniLevel || 0) >= OMNI_MAX_LEVEL;
+      case 'hp': return player.maxHp >= MAX_HP_CAP;
+      case 'orbit': return (player.orbitOrbs || 0) >= ORBIT_MAX;
+      case 'fairy': return (player.fairyLevel || 0) >= FAIRY_MAX;
+      default: return false; // uncapped: dmg/rate/spd/magnet/heal
     }
-    upgradeChoices = pool.slice(0, Math.min(3, pool.length));
+  }
+
+  function shuffleInPlace(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function syncLevelupStatus() {
+    if (!el.levelupStatus || !player) return;
+    const chip = (label, cur, max) => {
+      const maxed = max != null && cur >= max;
+      const txt = max != null ? (label + ' ' + cur + '/' + max) : (label + ' ' + cur);
+      return '<span class="lvl-chip' + (maxed ? ' maxed' : '') + (cur > 0 ? ' on' : '') + '">' + txt + '</span>';
+    };
+    const omniUnlocked = (player.laserLevel || 0) >= LASER_MAX_LEVEL;
+    el.levelupStatus.innerHTML =
+      chip('Multi', player.multishot, MULTISHOT_MAX) +
+      chip('Pierce', player.pierce || 0, PIERCE_MAX) +
+      chip('Laser', player.laserLevel || 0, LASER_MAX_LEVEL) +
+      chip('Orbit', player.orbitOrbs || 0, ORBIT_MAX) +
+      (omniUnlocked
+        ? chip('Omni', player.omniLevel || 0, OMNI_MAX_LEVEL)
+        : '<span class="lvl-chip locked">Omni 🔒</span>') +
+      chip('Fairy', player.fairyLevel || 0, FAIRY_MAX) +
+      chip('HP', player.maxHp, MAX_HP_CAP);
+  }
+
+  function offerLevelUp() {
+    // Prefer available (not maxed); pad with dimmed maxed so board always has up to 3.
+    const eligible = UPGRADE_DEFS.filter(upgradeEligible);
+    const available = shuffleInPlace(eligible.filter(u => !isUpgradeMaxed(u)));
+    const maxed = shuffleInPlace(eligible.filter(u => isUpgradeMaxed(u)));
+    const picks = [];
+    for (const u of available) {
+      if (picks.length >= 3) break;
+      picks.push({ def: u, maxed: false });
+    }
+    for (const u of maxed) {
+      if (picks.length >= 3) break;
+      picks.push({ def: u, maxed: true });
+    }
+    shuffleInPlace(picks);
+    upgradeChoices = picks;
     state = 'LEVELUP';
     AudioFX.levelUp();
     el.levelupTitle.textContent = 'LEVEL UP!  Lv ' + player.level;
+    syncLevelupStatus();
     el.cards.innerHTML = '';
-    upgradeChoices.forEach((u, i) => {
+    upgradeChoices.forEach((choice, i) => {
+      const u = choice.def;
       const card = document.createElement('button');
       card.type = 'button';
-      card.className = 'card' + (u.special ? ' card-special' : '');
+      card.className = 'card'
+        + (u.special ? ' card-special' : '')
+        + (choice.maxed ? ' card-maxed' : '');
+      card.disabled = !!choice.maxed;
       card.innerHTML =
-        '<span class="card-num">' + (i + 1) + (u.special ? ' ★' : '') + '</span>' +
+        '<span class="card-num">' + (i + 1) + (u.special ? ' ★' : '') + (choice.maxed ? ' MAX' : '') + '</span>' +
         '<span class="card-name">' + u.name + '</span>' +
-        '<span class="card-desc">' + u.desc + '</span>';
-      card.addEventListener('click', () => pickUpgrade(i));
+        '<span class="card-desc">' + (choice.maxed ? 'Already maxed' : u.desc) + '</span>';
+      if (!choice.maxed) card.addEventListener('click', () => pickUpgrade(i));
       el.cards.appendChild(card);
     });
     showOnly('levelup');
@@ -1821,8 +1939,9 @@
 
   function pickUpgrade(i) {
     if (state !== 'LEVELUP' || !upgradeChoices[i]) return;
+    if (upgradeChoices[i].maxed) return; // dimmed / not clickable
     AudioFX.click();
-    upgradeChoices[i].apply(player);
+    upgradeChoices[i].def.apply(player);
     upgradeChoices = [];
     state = 'PLAYING';
     showOnly('hud');
@@ -2104,6 +2223,60 @@
     }
   }
 
+  function updateFairies(dt) {
+    if (!player.fairyLevel) return;
+    player.fairyAngle = (player.fairyAngle || 0) + dt * 1.9;
+    player.fairyCd = (player.fairyCd || 0) - dt;
+    if (player.fairyCd > 0) return;
+    const n = player.fairyCount || 1;
+    const rad = player.fairyRadius || 52;
+    let fired = false;
+    for (let i = 0; i < n; i++) {
+      const a = player.fairyAngle + (i / n) * Math.PI * 2;
+      const fx = player.x + Math.cos(a) * rad;
+      const fy = player.y + Math.sin(a) * rad;
+      // Prefer a nearby enemy for this fairy (single-target snipes).
+      let best = null, bestD = 220 * 220;
+      for (const e of enemies) {
+        const d = (e.x - fx) ** 2 + (e.y - fy) ** 2;
+        if (d < bestD) { bestD = d; best = e; }
+      }
+      if (!best) continue;
+      const ang = Math.atan2(best.y - fy, best.x - fx);
+      const spd = 210;
+      projectiles.push({
+        x: fx, y: fy - 2,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        life: 0.9,
+        damage: player.fairyDamage,
+        pierce: 0,
+        hit: new Set(),
+        fairy: true,
+      });
+      fired = true;
+    }
+    if (fired) {
+      player.fairyCd = player.fairyCdMax || 0.35;
+      // Soft shoot — quieter than main gun
+      if (Math.random() < 0.45) AudioFX.shoot();
+    }
+  }
+
+  function updateHpRegen(dt) {
+    if (!player || player.hp >= player.maxHp) {
+      if (player) player.hpRegenAcc = 0;
+      return;
+    }
+    player.hpRegenAcc = (player.hpRegenAcc || 0) + dt;
+    while (player.hpRegenAcc >= HP_REGEN_INTERVAL) {
+      player.hpRegenAcc -= HP_REGEN_INTERVAL;
+      if (player.hp < player.maxHp) {
+        player.hp = Math.min(player.maxHp, player.hp + 1);
+      }
+    }
+  }
+
   function cleanupFarEntities() {
     const lim2 = CLEANUP_DIST * CLEANUP_DIST;
     for (let i = enemies.length - 1; i >= 0; i--) {
@@ -2204,6 +2377,8 @@
       wipeCd = Math.max(0, wipeCd - dt);
     }
     updateOrbitOrbs(dt);
+    updateFairies(dt);
+    updateHpRegen(dt);
 
     if (!bossSpawned && timeAlive >= BOSS_SPAWN_AT) {
       bossSpawned = true;
@@ -2418,7 +2593,7 @@
       const oy = fr.height - 2;
       blit(ctx, fr, s.x - ox, s.y - oy);
       if (e.isBoss || e.isKing || e.hp < e.maxHp) {
-        const bw = e.isBoss ? 42 : (e.isKing ? 22 : 14);
+        const bw = e.isBoss ? 72 : (e.isKing ? 22 : 14);
         const bh = e.isBoss ? 5 : 3;
         const by = s.y - oy - (e.isBoss ? 8 : 5);
         ctx.fillStyle = '#1a1020';
@@ -2444,7 +2619,7 @@
     const oy = fr.height - 2;
     blit(ctx, fr, s.x - ox, s.y - oy);
     if (e.isBoss || e.isKing || e.hp < e.maxHp) {
-      const bw = e.isBoss ? 56 : (e.isKing ? 22 : 14);
+      const bw = e.isBoss ? 84 : (e.isKing ? 22 : 14);
       const bh = e.isBoss ? 5 : 3;
       const by = s.y - oy - (e.isBoss ? 10 : 5);
       ctx.fillStyle = '#1a1020';
@@ -2493,6 +2668,22 @@
         ctx.beginPath();
         ctx.arc(s.x, s.y, 7, 0, Math.PI * 2);
         ctx.stroke();
+      }
+    }
+    if (player && player.fairyLevel > 0) {
+      const n = player.fairyCount || 1;
+      const rad = player.fairyRadius || 52;
+      for (let i = 0; i < n; i++) {
+        const a = (player.fairyAngle || 0) + (i / n) * Math.PI * 2;
+        const wx = player.x + Math.cos(a) * rad;
+        const wy = player.y + Math.sin(a) * rad;
+        const s = worldToScreen(wx, wy);
+        // soft glow under fairy
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255, 180, 220, 0.35)';
+        ctx.arc(s.x, s.y - 2, 8, 0, Math.PI * 2);
+        ctx.fill();
+        blit(ctx, fairySprite, s.x - 6, s.y - 10);
       }
     }
     if (player && player.laserTelegraph > 0) {
@@ -2571,7 +2762,8 @@
   function drawProjectiles() {
     for (const p of projectiles) {
       const s = worldToScreen(p.x, p.y);
-      blit(ctx, projSprite, s.x - 3, s.y - 3);
+      if (p.fairy) blit(ctx, fairyBoltSprite, s.x - 2, s.y - 2);
+      else blit(ctx, projSprite, s.x - 3, s.y - 3);
     }
   }
 
@@ -2731,8 +2923,13 @@
     getDebug: () => player ? ({
       x: player.x, y: player.y,
       multishot: player.multishot,
+      pierce: player.pierce,
       orbitOrbs: player.orbitOrbs,
       laserLevel: player.laserLevel,
+      omniLevel: player.omniLevel,
+      fairyLevel: player.fairyLevel,
+      maxHp: player.maxHp,
+      wipeCd,
       mode: playMode,
       timeAlive,
       enemies: enemies.length,
@@ -2741,6 +2938,7 @@
       zoom: VIEW_ZOOM,
       obstacles: obstacles.length,
     }) : null,
+    PIERCE_MAX, FAIRY_MAX, MAX_HP_CAP, OMNI_MAX_LEVEL, LASER_MAX_LEVEL,
     applyUpgradeId: (id) => {
       const u = UPGRADE_DEFS.find(d => d.id === id);
       if (u && player) u.apply(player);

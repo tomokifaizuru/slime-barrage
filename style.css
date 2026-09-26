@@ -629,3 +629,56 @@ html, body {
   .rank-columns { flex-direction: column; }
   .rank-col { min-height: 7em; }
 }
+
+
+/* Level-up status chips + maxed cards (v1.0 rebuild) */
+.levelup-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28em;
+  justify-content: center;
+  max-width: 96%;
+  margin: 0.15em auto 0.55em;
+  pointer-events: none;
+}
+.lvl-chip {
+  font-size: 0.68em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.18em 0.45em;
+  border-radius: 999px;
+  background: rgba(20, 28, 42, 0.85);
+  border: 1px solid rgba(160, 140, 200, 0.35);
+  color: rgba(230, 220, 240, 0.55);
+  white-space: nowrap;
+}
+.lvl-chip.on {
+  color: #ffe8f0;
+  border-color: rgba(247, 160, 192, 0.55);
+}
+.lvl-chip.maxed {
+  color: #a8e8c0;
+  border-color: rgba(125, 206, 160, 0.55);
+  opacity: 0.9;
+}
+.lvl-chip.locked {
+  color: rgba(200, 190, 210, 0.45);
+  border-style: dashed;
+}
+.card.card-maxed {
+  opacity: 0.42;
+  filter: grayscale(0.55) brightness(0.75);
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none !important;
+}
+.card.card-maxed:hover {
+  transform: none;
+  filter: grayscale(0.55) brightness(0.75);
+}
+.card.card-maxed .card-name {
+  color: #9aa0b0 !important;
+}
+.card.card-maxed .card-desc {
+  color: #7a8090;
+}

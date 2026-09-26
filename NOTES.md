@@ -92,3 +92,16 @@ Same original notes/hooks as battle preview — **not** Night of Nights / ZUN / 
 - Wipe HUD button (side) + Q/F; 120s cooldown; skips boss.
 - Rankings: localStorage `slimeBarrageLbSurvival` / `slimeBarrageLbTimed` + player name; side-by-side UI; submit on end. No Tomo Crossroad API reuse.
 - `VERSION = 'v1.0'`, cache-bust `?v=v10`.
+
+
+---
+
+# v1.0 rebuild (2026-09-26)
+
+- Omni only in pool when `laserLevel >= 6`; Omni max 3.
+- Orbiting Fairy (max 5): 1–3 fairies, modest DPS auto-snipes.
+- Level-up status chips; maxed cards `card-maxed` (dimmed, not pickable); prefer available then pad maxed.
+- Caps: Multi 7, Pierce 6, Laser 6, HP 200, Orbit 8 orbs, Fairy 5, Omni 3.
+- HP regen +1 / 2s in PLAYING only. Wipe starts at full 120s CD.
+- Monarch: frames 96, r=72, HP formula ×10.
+- `VERSION = 'v1.0'`, cache-bust `?v=v10b`.
