@@ -1,4 +1,4 @@
-# Slime Barrage v0.9
+# Slime Barrage v1.0
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **survive as long as you can** or **win Timed at 6:00**.
 
@@ -22,6 +22,7 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 | **WASD** or **Arrow keys** | Move |
 | *(automatic)* | Fire at nearest slime |
 | **1 / 2 / 3** or tap cards | Pick level-up upgrade |
+| **Q / F** or **WIPE** button | Clear all non-boss mobs (120s cooldown) |
 | **Enter / Space / R** | Confirm on menu / game over |
 | **M** or 🔊 button | Mute / unmute (saved) |
 | **Esc / P** or ⏸ button | Pause / resume |
@@ -39,25 +40,36 @@ Last mode is remembered in `localStorage`.
 
 ### Upgrades (pick 1 of 3 on level up)
 
-Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot (**max 6** — removed from pool at cap), Pierce Shot, Snack Break (heal), **Orbit Guard** (spinning shield orbs), **Pulse Laser** (telegraphed interval beam).
+Sharp Spark (damage), Rapid Fire, Sneaker Boost (speed), Hoodie Padding (max HP), Gem Magnet, Multishot (**max 7** — removed from pool at cap), Pierce Shot, Snack Break (heal), **Orbit Guard**, **Pulse Laser** (2.0s→0.75s, **L6 gold glitter**), **Omni Beam** (special 8/12-way burst).
+
+### XP gems
+
+| Tier | Color | Source | Notes |
+|------|-------|--------|-------|
+| Blue | cyan | Normal slimes | +10% vs prior normal XP |
+| Purple | violet | King / elites | Larger pickup, ~2–3× a blue |
+| Gold ×3 | gold | Pink-Mint Monarch | Biggest dump (~150 XP total) |
+
+### Rankings
+
+Local **Survival | Timed** boards (top 10 each) on the menu **RANKINGS** panel and after each run. Name is stored in `localStorage`. Scoring:
+
+- **Survival:** `time×5 + kills×12 + lv×20`
+- **Timed:** `kills×10 + time×2 + lv×25`
+
+Online shared boards can plug in later; v1.0 ships solid **local device** ranks.
+
+## What’s new in v1.0
+
+- Mob pace: **85%** chase speed at run start, +1%/min of baseline → **100% at minute 15**.
+- XP gem tiers: blue / purple / **triple gold** (Monarch).
+- Multishot max **7**; Pulse Laser L1–L6 (gold glitter at 6); **Omni Beam** special.
+- **Wipe** side skill (120s CD) — clears non-boss mobs and drops their gems.
+- Side-by-side **local rankings** (Survival | Timed).
 
 ## What’s new in v0.9
 
-- **Portrait vs landscape world zoom**: portrait ~**1.55** (meadow feels larger on phone); landscape ~**1.05** (near-normal). Recomputed on resize/orientation. HUD/UI scale unchanged (no cover-fill chrome blow-up).
-- **Tougher Pink-Mint Monarch**: larger (~r48, 64px frames), much more HP, slightly more contact damage. Still mid-run at ~150s.
-- **Orbit Guard** + **Pulse Laser** upgrades; multishot hard-capped at **6**.
-- **Infinite walkable meadow**: no world edges; tiled grass + sliding-window trees/bushes; camera follows without clamp; far entities cleaned up.
-- **Survival** and **Timed 6:00** mode buttons on the menu.
-
-## What’s new in v0.8
-
-- **Pink-Mint Monarch mid-run boss** (~2:30): procedural pink jelly with mint froth + gold crown. Boss HP bar. King slime stays as small crowned elite.
-- **BGM tracks**: early = Moonlit calm; while Monarch lives = Nightfall (crossfade). Procedural fallback if HTMLAudio fails.
-- **Soft damage numbers** + **floating virtual stick**.
-
-## What’s new in v0.7
-
-- Trees & bushes (seeded layout). World zoom. Volumes + pause. 5:00 timer (superseded by Timed 6:00 in v0.9).
+- Portrait vs landscape world zoom; tougher Monarch; Orbit Guard + Pulse Laser; infinite meadow; Survival + Timed modes.
 
 ## Tech
 

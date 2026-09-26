@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Slime Barrage" />
-  <title>Slime Barrage v0.9</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v09" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v09" />
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v09" />
-  <link rel="stylesheet" href="style.css?v=v09" />
+  <title>Slime Barrage v1.0</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v10" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v10" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v10" />
+  <link rel="stylesheet" href="style.css?v=v10" />
 </head>
 <body>
   <div id="stage">
@@ -37,6 +37,11 @@
               <button type="button" id="muteBtnHud" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊</button>
             </div>
           </div>
+          <button type="button" id="wipeBtn" class="wipe-btn ready" title="Wipe all mobs (120s CD)" aria-label="Wipe all mobs">
+            <span class="wipe-icon">💥</span>
+            <span class="wipe-label">WIPE</span>
+            <span id="wipeCd" class="wipe-cd">READY</span>
+          </button>
         </div>
 
         <div id="menu" class="panel">
@@ -62,8 +67,10 @@
             </div>
             <button type="button" id="muteBtnMenu" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
           </div>
-          <p class="hint">v0.9 · WASD / Arrows to move · auto-fires</p>
-          <p class="hint">Infinite meadow · Orbit Guard · Pulse Laser · Multishot max 6</p>
+          <button type="button" id="ranksBtn" class="btn ranks-btn">RANKINGS</button>
+          <p class="hint">v1.0 · WASD / Arrows to move · auto-fires · Wipe skill on the side</p>
+          <p class="hint">Orbit · Pulse Laser (L6 gold) · Omni Beam · Multishot max 7</p>
+          <p class="hint score-hint">Ranks: local device top 10 · Survival (time×5+kills×12+lv×20) · Timed (kills×10+time×2+lv×25)</p>
         </div>
 
         <div id="pause" class="panel dim hidden">
@@ -94,7 +101,32 @@
         <div id="end" class="panel dim hidden">
           <h2 id="endTitle" class="panel-title">GAME OVER</h2>
           <div id="endStats" class="end-stats"></div>
+          <p id="endRankNote" class="rank-note"></p>
           <button type="button" id="menuBtn" class="btn">Back to menu</button>
+          <button type="button" id="endRanksBtn" class="btn">View rankings</button>
+        </div>
+
+        <div id="ranks" class="panel dim hidden">
+          <h2 class="panel-title">RANKINGS</h2>
+          <p class="panel-sub">Local device boards · top 10 each · online-ready later</p>
+          <div class="rank-name-row">
+            <label for="rankNameInput">Name</label>
+            <input type="text" id="rankNameInput" maxlength="16" placeholder="Player" autocomplete="nickname" />
+            <button type="button" id="rankSaveNameBtn" class="btn small">Save</button>
+          </div>
+          <div class="rank-columns">
+            <div class="rank-col">
+              <h3 class="rank-col-title survival">Survival</h3>
+              <p class="rank-formula">time×5 + kills×12 + lv×20</p>
+              <ol id="rankSurvivalList" class="rank-list"></ol>
+            </div>
+            <div class="rank-col">
+              <h3 class="rank-col-title timed">Timed</h3>
+              <p class="rank-formula">kills×10 + time×2 + lv×25</p>
+              <ol id="rankTimedList" class="rank-list"></ol>
+            </div>
+          </div>
+          <button type="button" id="ranksBackBtn" class="btn primary">Back</button>
         </div>
       </div>
     </div>
@@ -103,7 +135,7 @@
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js?v=v09"></script>
+  <script src="game.js?v=v10"></script>
 
 </body>
 </html>

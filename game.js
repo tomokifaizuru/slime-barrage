@@ -1,11 +1,12 @@
 /**
- * Slime Barrage v0.9
+ * Slime Barrage v1.0
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit calm / Nightfall boss) with procedural fallback.
  * Mid-run Pink-Mint Monarch boss, floating touch stick, soft damage numbers.
  * Portrait/landscape world zoom, infinite meadow, Survival + Timed modes.
- * Orbit Guard + Pulse Laser upgrades; multishot hard-capped at 6.
+ * Orbit Guard, Pulse Laser (L6 gold), Omni Beam, Wipe skill, XP gem tiers.
+ * Multishot max 7; mob pace ramp; local Survival|Timed rankings.
  */
 (() => {
   'use strict';
@@ -18,7 +19,7 @@
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v0.9';
+  const VERSION = 'v1.0';
   const BOSS_SPAWN_AT = 150; // ~2:30 into Timed 6:00 / Survival from start
   const VIEW_H_MIN = 270;
   const VIEW_H_MAX = 1200;
@@ -26,7 +27,12 @@
   const VIEW_ZOOM_PORTRAIT = 1.55;
   const VIEW_ZOOM_LANDSCAPE = 1.05;
   let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
-  const MULTISHOT_MAX = 6;
+  const MULTISHOT_MAX = 7;
+  const LASER_MAX_LEVEL = 6;
+  const OMNI_MAX_LEVEL = 3;
+  const WIPE_COOLDOWN = 120;
+  const MOB_SPEED_START = 0.85; // −15% at run start vs baseline
+  const MOB_SPEED_RAMP = 0.01;  // +1% of baseline per minute → 100% at min 15
   const CLEANUP_DIST = 980;
   const PROP_CHUNK = 360;
   const PROP_KEEP_CHUNKS = 3; // ± chunks around player
@@ -71,6 +77,16 @@
     levelupTitle: document.getElementById('levelupTitle'),
     endTitle: document.getElementById('endTitle'),
     endStats: document.getElementById('endStats'),
+    wipeBtn: document.getElementById('wipeBtn'),
+    wipeCd: document.getElementById('wipeCd'),
+    ranksBtn: document.getElementById('ranksBtn'),
+    ranks: document.getElementById('ranks'),
+    ranksBackBtn: document.getElementById('ranksBackBtn'),
+    rankSurvivalList: document.getElementById('rankSurvivalList'),
+    rankTimedList: document.getElementById('rankTimedList'),
+    rankNameInput: document.getElementById('rankNameInput'),
+    rankSaveNameBtn: document.getElementById('rankSaveNameBtn'),
+    endRankNote: document.getElementById('endRankNote'),
   };
 
   // Resize internal view to match viewport aspect, then CSS-size the box to fill.
@@ -814,6 +830,10 @@
       if (e.code === 'Digit2' || e.code === 'Numpad2') pickUpgrade(1);
       if (e.code === 'Digit3' || e.code === 'Numpad3') pickUpgrade(2);
     }
+    if ((e.code === 'KeyQ' || e.code === 'KeyF') && state === 'PLAYING') {
+      activateWipe();
+      return;
+    }
     if (e.code === 'KeyM') { AudioFX.unlock(); AudioFX.toggleMute(); }
     if (e.code === 'Escape' || e.code === 'KeyP') {
       if (state === 'PLAYING') { e.preventDefault(); togglePause(true); }
@@ -942,6 +962,43 @@
     AudioFX.setBgmDucked(false);
     goMenu();
   });
+
+  if (el.wipeBtn) {
+    el.wipeBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      AudioFX.unlock();
+      activateWipe();
+    });
+  }
+  if (el.ranksBtn) {
+    el.ranksBtn.addEventListener('click', () => {
+      AudioFX.unlock();
+      openRanks();
+    });
+  }
+  const endRanksBtn = document.getElementById('endRanksBtn');
+  if (endRanksBtn) {
+    endRanksBtn.addEventListener('click', () => {
+      AudioFX.click();
+      openRanks();
+    });
+  }
+  if (el.ranksBackBtn) {
+    el.ranksBackBtn.addEventListener('click', () => {
+      AudioFX.click();
+      goMenu();
+    });
+  }
+  if (el.rankSaveNameBtn) {
+    el.rankSaveNameBtn.addEventListener('click', () => {
+      AudioFX.click();
+      const n = ((el.rankNameInput && el.rankNameInput.value) || '').trim().slice(0, 16) || 'Player';
+      playerName = n;
+      try { localStorage.setItem('slimeBarragePlayerName', playerName); } catch (_) {}
+      if (el.rankNameInput) el.rankNameInput.value = playerName;
+    });
+  }
 
   // ---------- Pixel sprite helpers ----------
   function makeSprite(w, h, drawFn) {
@@ -1193,12 +1250,18 @@
     fillRect(g, 0, 2, 6, 2, '#ffe8a0');
     fillRect(g, 2, 2, 2, 2, '#ffffff');
   });
-  const gemSprite = makeSprite(8, 8, (g) => {
-    fillRect(g, 3, 0, 2, 8, '#7cf0ff');
-    fillRect(g, 0, 3, 8, 2, '#7cf0ff');
-    fillRect(g, 2, 1, 4, 6, '#40d8f0');
-    fillRect(g, 3, 2, 2, 4, '#e0ffff');
-  });
+  function makeGemSprite(c1, c2, c3, size = 8) {
+    return makeSprite(size, size, (g) => {
+      const mid = (size / 2) | 0;
+      fillRect(g, mid - 1, 0, 2, size, c1);
+      fillRect(g, 0, mid - 1, size, 2, c1);
+      fillRect(g, mid - 2, 1, 4, size - 2, c2);
+      fillRect(g, mid - 1, 2, 2, size - 4, c3);
+    });
+  }
+  const gemSpriteBlue = makeGemSprite('#7cf0ff', '#40d8f0', '#e0ffff', 8);
+  const gemSpritePurple = makeGemSprite('#d080ff', '#a040e8', '#f0d0ff', 12);
+  const gemSpriteGold = makeGemSprite('#ffe060', '#e8c84a', '#fff8d0', 14);
 
   // Night-meadow props (procedural) — trunk/core is the solid collider; canopy is visual only.
   function drawTreeSprite(g, w, h, palette) {
@@ -1260,8 +1323,12 @@
   let bossSpawned = false;
   let bossAlive = false;
   let playMode = localStorage.getItem('slimeBarrageMode') === 'survival' ? 'survival' : 'timed';
-  let lasers = []; // active beam visuals {x,y,ang,life,damage,hit}
+  let lasers = []; // active beam visuals {x,y,ang,life,damage,hit,gold,omni}
   let bestSurvival = parseFloat(localStorage.getItem('slimeBarrageBestSurvival') || '0') || 0;
+  let wipeCd = 0;
+  let playerName = '';
+  try { playerName = localStorage.getItem('slimeBarragePlayerName') || ''; } catch (_) {}
+
 
   const UPGRADE_DEFS = [
     { id: 'dmg', name: 'Sharp Spark', desc: '+25% projectile damage', apply: p => { p.damage = Math.round(p.damage * 1.25); } },
@@ -1269,20 +1336,39 @@
     { id: 'spd', name: 'Sneaker Boost', desc: '+15% move speed', apply: p => { p.speed *= 1.15; } },
     { id: 'hp', name: 'Hoodie Padding', desc: '+20 max HP & heal 20', apply: p => { p.maxHp += 20; p.hp = Math.min(p.maxHp, p.hp + 20); } },
     { id: 'magnet', name: 'Gem Magnet', desc: '+40% pickup range', apply: p => { p.magnet *= 1.4; } },
-    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 6)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
+    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 7)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
     { id: 'pierce', name: 'Pierce Shot', desc: 'Projectiles pierce +1', apply: p => { p.pierce += 1; } },
     { id: 'heal', name: 'Snack Break', desc: 'Restore 40 HP', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
     { id: 'orbit', name: 'Orbit Guard', desc: 'Shield orbs spin & smash', apply: p => {
       if (!p.orbitOrbs) { p.orbitOrbs = 2; p.orbitRadius = 44; }
       else { p.orbitOrbs += 1; p.orbitRadius = Math.min(78, p.orbitRadius + 6); }
     } },
-    { id: 'laser', name: 'Pulse Laser', desc: 'Periodic beam at foes', apply: p => {
-      p.laserLevel = (p.laserLevel || 0) + 1;
-      p.laserCdMax = Math.max(1.15, 3.0 - p.laserLevel * 0.3);
-      p.laserDamage = 32 + p.laserLevel * 16;
-      if (p.laserCd <= 0) p.laserCd = 0.6;
+    { id: 'laser', name: 'Pulse Laser', desc: 'Beam clock: 2.0s → 0.75s (max 6)', apply: p => {
+      p.laserLevel = Math.min(LASER_MAX_LEVEL, (p.laserLevel || 0) + 1);
+      // L1=2.0, L2=1.75 … L6=0.75
+      p.laserCdMax = Math.max(0.75, 2.0 - (p.laserLevel - 1) * 0.25);
+      p.laserDamage = 32 + p.laserLevel * 16 + (p.laserLevel >= LASER_MAX_LEVEL ? 24 : 0);
+      if (p.laserCd <= 0) p.laserCd = 0.5;
+    } },
+    { id: 'omni', name: 'Omni Beam', desc: 'SPECIAL · 8-way ray burst', special: true, apply: p => {
+      p.omniLevel = Math.min(OMNI_MAX_LEVEL, (p.omniLevel || 0) + 1);
+      p.omniCdMax = Math.max(2.4, 5.0 - p.omniLevel * 0.6);
+      p.omniDamage = 20 + p.omniLevel * 14;
+      p.omniRays = p.omniLevel >= 3 ? 12 : 8;
+      if (p.omniCd <= 0) p.omniCd = 1.0;
     } },
   ];
+
+  function laserIntervalForLevel(lv) {
+    if (lv <= 0) return 2.0;
+    return Math.max(0.75, 2.0 - (Math.min(LASER_MAX_LEVEL, lv) - 1) * 0.25);
+  }
+
+  /** Mob chase-speed multiplier vs baseline: 85% at t=0 → 100% at minute 15. */
+  function mobSpeedMul() {
+    const mins = Math.floor(timeAlive / 60);
+    return Math.min(1.0, MOB_SPEED_START + mins * MOB_SPEED_RAMP);
+  }
 
   function resetPlayer() {
     return {
@@ -1304,10 +1390,16 @@
       orbitAngle: 0,
       laserLevel: 0,
       laserCd: 0,
-      laserCdMax: 3.0,
+      laserCdMax: 2.0,
       laserDamage: 0,
       laserTelegraph: 0,
       laserAng: 0,
+      omniLevel: 0,
+      omniCd: 0,
+      omniCdMax: 5.0,
+      omniDamage: 0,
+      omniRays: 8,
+      omniTelegraph: 0,
     };
   }
 
@@ -1316,10 +1408,11 @@
     el.hud.classList.toggle('hidden', panel !== 'hud' && panel !== 'levelup' && panel !== 'end' && panel !== 'pause');
     // Keep HUD visible under levelup/end/pause for context, but hide on menu
     if (panel === 'levelup' || panel === 'end' || panel === 'pause') el.hud.classList.remove('hidden');
-    if (panel === 'menu') el.hud.classList.add('hidden');
+    if (panel === 'menu' || panel === 'ranks') el.hud.classList.add('hidden');
     el.pause.classList.toggle('hidden', panel !== 'pause');
     el.levelup.classList.toggle('hidden', panel !== 'levelup');
     el.end.classList.toggle('hidden', panel !== 'end');
+    if (el.ranks) el.ranks.classList.toggle('hidden', panel !== 'ranks');
   }
 
   function togglePause(on) {
@@ -1449,6 +1542,7 @@
     flashHurt = 0;
     bossSpawned = false;
     bossAlive = false;
+    wipeCd = 0;
     propChunkCX = null;
     propChunkCY = null;
     refreshPropsAround(player.x, player.y, true);
@@ -1508,6 +1602,19 @@
       el.timer.title = 'Time remaining';
     }
     el.kills.textContent = 'Kills ' + killCount;
+    syncWipeBtn();
+  }
+
+  function syncWipeBtn() {
+    if (!el.wipeBtn) return;
+    const ready = wipeCd <= 0;
+    el.wipeBtn.classList.toggle('ready', ready);
+    el.wipeBtn.classList.toggle('cooling', !ready);
+    el.wipeBtn.disabled = !ready || (state !== 'PLAYING' && state !== 'LEVELUP' && state !== 'PAUSED');
+    if (el.wipeCd) {
+      el.wipeCd.textContent = ready ? 'READY' : formatTime(Math.ceil(wipeCd));
+    }
+    el.wipeBtn.setAttribute('aria-label', ready ? 'Wipe all mobs' : 'Wipe cooldown ' + formatTime(Math.ceil(wipeCd)));
   }
 
   // ---------- Spawning ----------
@@ -1543,13 +1650,15 @@
     const baseHp = (isKing ? 80 + t * 0.6 : 18 + t * 0.35) * scale;
     const baseSpd = (isKing ? 38 : 48 + Math.min(40, t * 0.15)) * (1 + (scale - 1) * 0.35);
     const dmg = (isKing ? 18 : 8 + Math.min(10, t * 0.04)) * (1 + (scale - 1) * 0.45);
+    const spd = baseSpd + Math.random() * 10;
 
     enemies.push({
       x, y,
       r: isKing ? 16 : 10,
       color,
       hp: baseHp, maxHp: baseHp,
-      speed: baseSpd + Math.random() * 10,
+      baseSpeed: spd,
+      speed: spd * mobSpeedMul(),
       damage: dmg,
       frame: (Math.random() * 4) | 0,
       frameT: Math.random(),
@@ -1577,12 +1686,14 @@
     // Tougher + larger Pink-Mint Monarch (v0.9).
     const scale = difficultyScale();
     const hp = (2200 + timeAlive * 4.5) * (playMode === 'survival' ? scale : 1);
+    const bossSpd = 26 + Math.random() * 4;
     enemies.push({
       x, y,
       r: 48,
       color: 'monarch',
       hp, maxHp: hp,
-      speed: 26 + Math.random() * 4,
+      baseSpeed: bossSpd,
+      speed: bossSpd * mobSpeedMul(),
       damage: 34,
       frame: 0,
       frameT: 0,
@@ -1638,8 +1749,34 @@
     AudioFX.shoot();
   }
 
-  function dropGem(x, y, value) {
-    gems.push({ x, y, value, bob: Math.random() * Math.PI * 2 });
+  function dropGem(x, y, value, tier = 'blue') {
+    const size = tier === 'gold' ? 14 : (tier === 'purple' ? 12 : 8);
+    gems.push({
+      x, y, value, tier, size,
+      bob: Math.random() * Math.PI * 2,
+    });
+  }
+
+  /** XP gem tiers: blue (+10% normals), purple (kings), gold×3 (Monarch). */
+  function dropGemsForEnemy(e) {
+    if (e.isBoss) {
+      // Triple gold — largest XP dump in the game (~50 each = 150 total).
+      const each = 50;
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 + Math.random() * 0.4;
+        dropGem(e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 14, each, 'gold');
+      }
+      return;
+    }
+    if (e.isKing) {
+      // Purple: ~2.5× a blue of similar tier (blue≈2–3 → purple≈22–30).
+      const val = Math.max(22, Math.round((e.xp || 12) * 2.2));
+      dropGem(e.x, e.y, val, 'purple');
+      return;
+    }
+    const base = e.xp || 2;
+    const val = Math.max(2, Math.round(base * 1.1));
+    dropGem(e.x, e.y, val, 'blue');
   }
 
   function addParticles(x, y, col, n = 6) {
@@ -1655,10 +1792,9 @@
 
   function offerLevelUp() {
     let pool = UPGRADE_DEFS.slice();
-    // Hard cap: once multishot hits 6, remove it from the level-up pool.
-    if (player.multishot >= MULTISHOT_MAX) {
-      pool = pool.filter(u => u.id !== 'multi');
-    }
+    if (player.multishot >= MULTISHOT_MAX) pool = pool.filter(u => u.id !== 'multi');
+    if ((player.laserLevel || 0) >= LASER_MAX_LEVEL) pool = pool.filter(u => u.id !== 'laser');
+    if ((player.omniLevel || 0) >= OMNI_MAX_LEVEL) pool = pool.filter(u => u.id !== 'omni');
     for (let i = pool.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
       [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -1671,9 +1807,9 @@
     upgradeChoices.forEach((u, i) => {
       const card = document.createElement('button');
       card.type = 'button';
-      card.className = 'card';
+      card.className = 'card' + (u.special ? ' card-special' : '');
       card.innerHTML =
-        '<span class="card-num">' + (i + 1) + '</span>' +
+        '<span class="card-num">' + (i + 1) + (u.special ? ' ★' : '') + '</span>' +
         '<span class="card-name">' + u.name + '</span>' +
         '<span class="card-desc">' + u.desc + '</span>';
       card.addEventListener('click', () => pickUpgrade(i));
@@ -1693,6 +1829,101 @@
     syncHud();
   }
 
+  // ---------- Ranking (local device boards; online-ready shape) ----------
+  const LB_KEYS = {
+    survival: 'slimeBarrageLbSurvival',
+    timed: 'slimeBarrageLbTimed',
+  };
+  const LB_MAX = 10;
+
+  function computeScore(mode, kills, time, level) {
+    // Timed: kills/time/level blend. Survival: emphasize time survived + kills.
+    if (mode === 'survival') {
+      return Math.floor(timeAlive) * 5 + kills * 12 + level * 20;
+    }
+    return kills * 10 + Math.floor(time) * 2 + level * 25;
+  }
+
+  function loadBoard(mode) {
+    try {
+      const raw = localStorage.getItem(LB_KEYS[mode]);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (_) { return []; }
+  }
+
+  function saveBoard(mode, arr) {
+    try { localStorage.setItem(LB_KEYS[mode], JSON.stringify(arr.slice(0, LB_MAX))); } catch (_) {}
+  }
+
+  function getPlayerName() {
+    return (playerName || '').trim() || 'Player';
+  }
+
+  function ensurePlayerName() {
+    let n = (playerName || '').trim();
+    if (!n) {
+      try {
+        n = (window.prompt('Enter your name for rankings:', 'Player') || '').trim();
+      } catch (_) { n = ''; }
+      if (!n) n = 'Player';
+      playerName = n.slice(0, 16);
+      try { localStorage.setItem('slimeBarragePlayerName', playerName); } catch (_) {}
+      if (el.rankNameInput) el.rankNameInput.value = playerName;
+    }
+    return playerName;
+  }
+
+  function submitScore(mode, score, meta) {
+    const name = ensurePlayerName();
+    const entry = {
+      name,
+      score,
+      kills: meta.kills | 0,
+      time: meta.time || 0,
+      level: meta.level | 0,
+      at: Date.now(),
+    };
+    const board = loadBoard(mode);
+    board.push(entry);
+    board.sort((a, b) => b.score - a.score || b.time - a.time);
+    saveBoard(mode, board);
+    return { name, score, rank: board.findIndex(e => e === board.find(x => x.at === entry.at && x.score === entry.score)) + 1 };
+  }
+
+  function renderRankList(elList, mode) {
+    if (!elList) return;
+    const board = loadBoard(mode);
+    if (!board.length) {
+      elList.innerHTML = '<li class="rank-empty">No scores yet</li>';
+      return;
+    }
+    elList.innerHTML = board.slice(0, LB_MAX).map((e, i) =>
+      '<li><span class="rank-i">' + (i + 1) + '</span>' +
+      '<span class="rank-name">' + escapeHtml(e.name) + '</span>' +
+      '<span class="rank-score">' + e.score + '</span></li>'
+    ).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[c]);
+  }
+
+  function refreshRanksUI() {
+    renderRankList(el.rankSurvivalList, 'survival');
+    renderRankList(el.rankTimedList, 'timed');
+    if (el.rankNameInput && playerName) el.rankNameInput.value = playerName;
+  }
+
+  function openRanks() {
+    AudioFX.click();
+    refreshRanksUI();
+    state = 'MENU';
+    showOnly('ranks');
+  }
+
   function showEnd(won) {
     state = won ? 'WIN' : 'GAMEOVER';
     AudioFX.stopBgm(true);
@@ -1706,7 +1937,7 @@
       el.endTitle.textContent = 'GAME OVER';
     }
     el.endTitle.className = 'panel-title ' + (won ? 'win' : 'lose');
-    const score = killCount * 10 + Math.floor(timeAlive) * 2 + player.level * 25;
+    const score = computeScore(playMode, killCount, timeAlive, player.level);
     let bestLine = '';
     if (playMode === 'survival') {
       if (timeAlive > bestSurvival) {
@@ -1715,13 +1946,24 @@
       }
       bestLine = '<div>Best  ' + formatTime(bestSurvival) + '</div>';
     }
+    const submitted = submitScore(playMode, score, {
+      kills: killCount, time: timeAlive, level: player.level,
+    });
+    const formula = playMode === 'survival'
+      ? 'Score = time×5 + kills×12 + lv×20'
+      : 'Score = kills×10 + time×2 + lv×25';
     el.endStats.innerHTML =
       '<div>Mode  ' + modeLabel + '</div>' +
       '<div>Time  ' + formatTime(timeAlive) + '</div>' +
       bestLine +
       '<div>Kills  ' + killCount + '</div>' +
       '<div>Level  ' + player.level + '</div>' +
-      '<div class="score">Score  ' + score + '</div>';
+      '<div class="score">Score  ' + score + '</div>' +
+      '<div class="rank-submit">Local rank #' + submitted.rank + ' · ' + escapeHtml(submitted.name) + '</div>' +
+      '<div class="rank-formula">' + formula + ' · local device board</div>';
+    if (el.endRankNote) {
+      el.endRankNote.textContent = 'Saved to local ' + modeLabel + ' ranks (top 10).';
+    }
     showOnly('end');
     syncHud();
   }
@@ -1737,33 +1979,100 @@
     return Math.atan2(best.y - player.y, best.x - player.x);
   }
 
+  function beamHitscan(ox, oy, ang, len, dmg, hitR, sparkCol) {
+    for (const e of enemies) {
+      const dx = e.x - ox, dy = e.y - oy;
+      const proj = dx * Math.cos(ang) + dy * Math.sin(ang);
+      if (proj < 0 || proj > len) continue;
+      const px = ox + Math.cos(ang) * proj;
+      const py = oy + Math.sin(ang) * proj;
+      const hx = e.x - px, hy = e.y - py;
+      if (hx * hx + hy * hy < (e.r + hitR) ** 2) {
+        e.hp -= dmg;
+        spawnDmgNum(e.x, e.y - e.r, dmg);
+        addParticles(e.x, e.y, sparkCol, 4);
+      }
+    }
+  }
+
   function firePulseLaser() {
     const ang = nearestEnemyAng();
     player.laserAng = ang;
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
-    const len = 220 + player.laserLevel * 18;
+    const gold = (player.laserLevel || 0) >= LASER_MAX_LEVEL;
+    const len = 220 + player.laserLevel * 18 + (gold ? 30 : 0);
     const dmg = player.laserDamage;
     lasers.push({
       x: player.x, y: player.y - 4,
-      ang, len, life: 0.22, maxLife: 0.22,
-      damage: dmg, width: 5 + player.laserLevel,
+      ang, len, life: gold ? 0.28 : 0.22, maxLife: gold ? 0.28 : 0.22,
+      damage: dmg, width: 5 + player.laserLevel + (gold ? 2 : 0),
+      gold, omni: false,
     });
-    // Instant hit-scan along beam
-    for (const e of enemies) {
-      const dx = e.x - player.x, dy = e.y - (player.y - 4);
-      const proj = dx * Math.cos(ang) + dy * Math.sin(ang);
-      if (proj < 0 || proj > len) continue;
-      const px = player.x + Math.cos(ang) * proj;
-      const py = (player.y - 4) + Math.sin(ang) * proj;
-      const ox = e.x - px, oy = e.y - py;
-      if (ox * ox + oy * oy < (e.r + 8) ** 2) {
-        e.hp -= dmg;
-        spawnDmgNum(e.x, e.y - e.r, dmg);
-        addParticles(e.x, e.y, '#7cf0ff', 5);
+    beamHitscan(player.x, player.y - 4, ang, len, dmg, gold ? 10 : 8, gold ? '#ffe8a0' : '#7cf0ff');
+    AudioFX.shoot();
+    addParticles(
+      player.x + Math.cos(ang) * 20,
+      player.y + Math.sin(ang) * 20,
+      gold ? '#ffe060' : '#a0f0ff',
+      gold ? 10 : 6
+    );
+    if (gold) {
+      for (let i = 0; i < 6; i++) {
+        const a = ang + (Math.random() - 0.5) * 0.5;
+        const d = 30 + Math.random() * len * 0.6;
+        addParticles(player.x + Math.cos(a) * d, player.y - 4 + Math.sin(a) * d, '#fff8d0', 2);
       }
     }
+  }
+
+  function fireOmniBeam() {
+    const n = player.omniRays || 8;
+    const len = 160 + (player.omniLevel || 1) * 20;
+    const dmg = player.omniDamage;
+    const ox = player.x, oy = player.y - 4;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + (player.orbitAngle || 0) * 0.15;
+      lasers.push({
+        x: ox, y: oy, ang, len,
+        life: 0.2, maxLife: 0.2,
+        damage: dmg, width: 4 + (player.omniLevel || 1),
+        gold: false, omni: true,
+      });
+      beamHitscan(ox, oy, ang, len, dmg, 7, '#e0a0ff');
+    }
     AudioFX.shoot();
-    addParticles(player.x + Math.cos(ang) * 20, player.y + Math.sin(ang) * 20, '#a0f0ff', 6);
+    addParticles(ox, oy, '#d080ff', 14);
+  }
+
+  /** Wipe skill: clear all non-boss mobs; award XP gems for fairness. Boss stays. */
+  function activateWipe() {
+    if (state !== 'PLAYING' || wipeCd > 0) return;
+    if (!enemies.length) {
+      wipeCd = WIPE_COOLDOWN;
+      syncWipeBtn();
+      return;
+    }
+    const doomed = [];
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      if (e.isBoss) continue;
+      doomed.push(e);
+      enemies.splice(i, 1);
+    }
+    for (const e of doomed) {
+      dropGemsForEnemy(e);
+      const palKey = e.color === 'king' ? 'mint' : e.color;
+      addParticles(e.x, e.y, (slimePalettes[palKey] || slimePalettes.mint).mid, 6);
+      killCount++;
+    }
+    if (doomed.length) {
+      addParticles(player.x, player.y, '#ffe8f0', 18);
+      AudioFX.kill();
+      AudioFX.levelUp();
+    }
+    wipeCd = WIPE_COOLDOWN;
+    syncWipeBtn();
+    syncHud();
   }
 
   function updateOrbitOrbs(dt) {
@@ -1855,7 +2164,7 @@
       player.fireCd = player.fireCdMax;
     }
 
-    // Pulse Laser: telegraph then beam
+    // Pulse Laser: telegraph then beam (interval from laserCdMax: 2.0→0.75)
     if (player.laserLevel > 0) {
       if (player.laserTelegraph > 0) {
         player.laserTelegraph -= dt;
@@ -1872,9 +2181,27 @@
         }
       }
     }
+    // Omni Beam: brief telegraph then 8/12-way burst
+    if (player.omniLevel > 0) {
+      if (player.omniTelegraph > 0) {
+        player.omniTelegraph -= dt;
+        if (player.omniTelegraph <= 0) {
+          fireOmniBeam();
+          player.omniCd = player.omniCdMax;
+        }
+      } else {
+        player.omniCd -= dt;
+        if (player.omniCd <= 0) {
+          player.omniTelegraph = 0.28;
+        }
+      }
+    }
     for (let i = lasers.length - 1; i >= 0; i--) {
       lasers[i].life -= dt;
       if (lasers[i].life <= 0) lasers.splice(i, 1);
+    }
+    if (wipeCd > 0) {
+      wipeCd = Math.max(0, wipeCd - dt);
     }
     updateOrbitOrbs(dt);
 
@@ -1934,7 +2261,7 @@
 
       if (e.hp <= 0) {
         const wasBoss = !!e.isBoss;
-        dropGem(e.x, e.y, e.xp);
+        dropGemsForEnemy(e);
         const palKey = e.color === 'king' ? 'mint' : (e.color === 'monarch' ? 'pink' : e.color);
         addParticles(e.x, e.y, slimePalettes[palKey].mid, wasBoss ? 22 : 10);
         if (wasBoss) {
@@ -1951,8 +2278,10 @@
 
       const dx = player.x - e.x, dy = player.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
-      e.x += (dx / d) * e.speed * dt;
-      e.y += (dy / d) * e.speed * dt;
+      const spd = (e.baseSpeed != null ? e.baseSpeed : e.speed) * mobSpeedMul();
+      e.speed = spd;
+      e.x += (dx / d) * spd * dt;
+      e.y += (dy / d) * spd * dt;
       resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
 
       if (d < e.r + 8 && player.invuln <= 0) {
@@ -2168,11 +2497,12 @@
     }
     if (player && player.laserTelegraph > 0) {
       const ang = player.laserAng || 0;
+      const gold = (player.laserLevel || 0) >= LASER_MAX_LEVEL;
       const len = 200;
       const s0 = worldToScreen(player.x, player.y - 4);
       const s1 = worldToScreen(player.x + Math.cos(ang) * len, player.y - 4 + Math.sin(ang) * len);
       ctx.save();
-      ctx.strokeStyle = 'rgba(255, 120, 160, 0.55)';
+      ctx.strokeStyle = gold ? 'rgba(255, 220, 100, 0.65)' : 'rgba(255, 120, 160, 0.55)';
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
@@ -2181,24 +2511,59 @@
       ctx.stroke();
       ctx.restore();
     }
+    if (player && player.omniTelegraph > 0) {
+      const n = player.omniRays || 8;
+      const s0 = worldToScreen(player.x, player.y - 4);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(220, 140, 255, 0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      for (let i = 0; i < n; i++) {
+        const ang = (i / n) * Math.PI * 2;
+        const s1 = worldToScreen(player.x + Math.cos(ang) * 70, player.y - 4 + Math.sin(ang) * 70);
+        ctx.beginPath();
+        ctx.moveTo(s0.x, s0.y);
+        ctx.lineTo(s1.x, s1.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     for (const L of lasers) {
       const s0 = worldToScreen(L.x, L.y);
       const s1 = worldToScreen(L.x + Math.cos(L.ang) * L.len, L.y + Math.sin(L.ang) * L.len);
       const a = Math.max(0, L.life / L.maxLife);
       ctx.save();
-      ctx.strokeStyle = `rgba(120, 230, 255, ${0.35 + a * 0.55})`;
-      ctx.lineWidth = L.width + 4;
       ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(s0.x, s0.y);
-      ctx.lineTo(s1.x, s1.y);
-      ctx.stroke();
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + a * 0.5})`;
-      ctx.lineWidth = Math.max(2, L.width * 0.45);
-      ctx.beginPath();
-      ctx.moveTo(s0.x, s0.y);
-      ctx.lineTo(s1.x, s1.y);
-      ctx.stroke();
+      if (L.gold) {
+        ctx.strokeStyle = `rgba(255, 200, 60, ${0.3 + a * 0.55})`;
+        ctx.lineWidth = L.width + 6;
+        ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
+        ctx.strokeStyle = `rgba(255, 248, 200, ${0.55 + a * 0.45})`;
+        ctx.lineWidth = Math.max(2, L.width * 0.5);
+        ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
+        // sparkle ticks along beam
+        for (let k = 0; k < 5; k++) {
+          const t = (k + 1) / 6;
+          const sx = s0.x + (s1.x - s0.x) * t;
+          const sy = s0.y + (s1.y - s0.y) * t;
+          ctx.fillStyle = `rgba(255,255,240,${0.4 + a * 0.5})`;
+          ctx.fillRect(sx - 1, sy - 1, 2, 2);
+        }
+      } else if (L.omni) {
+        ctx.strokeStyle = `rgba(200, 100, 255, ${0.3 + a * 0.5})`;
+        ctx.lineWidth = L.width + 3;
+        ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
+        ctx.strokeStyle = `rgba(255, 220, 255, ${0.45 + a * 0.5})`;
+        ctx.lineWidth = Math.max(1.5, L.width * 0.4);
+        ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
+      } else {
+        ctx.strokeStyle = `rgba(120, 230, 255, ${0.35 + a * 0.55})`;
+        ctx.lineWidth = L.width + 4;
+        ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + a * 0.5})`;
+        ctx.lineWidth = Math.max(2, L.width * 0.45);
+        ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -2213,7 +2578,10 @@
   function drawGems() {
     for (const g of gems) {
       const s = worldToScreen(g.x, g.y + Math.sin(g.bob) * 2);
-      blit(ctx, gemSprite, s.x - 4, s.y - 4);
+      const spr = g.tier === 'gold' ? gemSpriteGold
+        : (g.tier === 'purple' ? gemSpritePurple : gemSpriteBlue);
+      const half = spr.width / 2;
+      blit(ctx, spr, s.x - half, s.y - half);
     }
   }
 

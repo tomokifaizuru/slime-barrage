@@ -454,3 +454,178 @@ html, body {
   }
   .mode-btn { flex: 1 1 0; font-size: 1.1em; padding: 0.5em 0.8em; }
 }
+
+
+/* ---------- v1.0 Wipe skill + Rankings ---------- */
+#hud .wipe-btn { pointer-events: auto; }
+.wipe-btn {
+  position: absolute;
+  right: 2.5%;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15em;
+  min-width: 3.4em;
+  min-height: 3.8em;
+  padding: 0.35em 0.45em;
+  border-radius: 0.55em;
+  border: 2px solid rgba(255, 180, 120, 0.55);
+  background: rgba(40, 18, 28, 0.82);
+  color: #ffe8d0;
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 0.15em 0 #4a2030;
+  z-index: 6;
+}
+.wipe-btn.ready {
+  border-color: #ffb070;
+  background: linear-gradient(180deg, rgba(90, 30, 40, 0.92), rgba(40, 14, 24, 0.9));
+  animation: wipePulse 1.8s ease-in-out infinite;
+}
+.wipe-btn.cooling {
+  opacity: 0.72;
+  filter: saturate(0.7);
+  cursor: not-allowed;
+}
+.wipe-btn:disabled { pointer-events: auto; }
+.wipe-icon { font-size: 1.25em; line-height: 1; }
+.wipe-label { font-size: 0.85em; }
+.wipe-cd {
+  font-size: 0.75em;
+  font-variant-numeric: tabular-nums;
+  color: #ffe8a0;
+}
+@keyframes wipePulse {
+  0%, 100% { box-shadow: 0 0.15em 0 #4a2030, 0 0 0.4em rgba(255, 140, 80, 0.25); }
+  50% { box-shadow: 0 0.15em 0 #4a2030, 0 0 0.7em rgba(255, 160, 100, 0.55); }
+}
+
+.ranks-btn {
+  margin-top: 0.25em;
+  background: #2a3858;
+  box-shadow: 0 0.18em 0 #141c30;
+  font-size: 1.05em;
+}
+.score-hint {
+  font-size: 0.78em !important;
+  max-width: 24em;
+  color: #7080a0 !important;
+}
+
+.card.card-special {
+  border-color: #ffe060 !important;
+  background: linear-gradient(180deg, #2a2438, #1a1830);
+  box-shadow: 0 0 0.55em rgba(255, 200, 80, 0.35);
+}
+.card.card-special .card-name { color: #ffe060 !important; }
+.card.card-special .card-num { color: #ffe8a0; }
+
+#ranks .panel-sub {
+  font-size: 0.9em;
+  color: #a0b0c8;
+  margin-bottom: 0.35em;
+}
+.rank-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  width: min(22em, 94%);
+  margin: 0.2em 0 0.55em;
+  font-size: 0.95em;
+  font-weight: 700;
+}
+.rank-name-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.35em 0.5em;
+  border-radius: 0.35em;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(10, 14, 22, 0.85);
+  color: #e8f0ff;
+  font: inherit;
+}
+.btn.small {
+  font-size: 0.9em;
+  padding: 0.35em 0.8em;
+}
+.rank-columns {
+  display: flex;
+  gap: 0.6em;
+  width: min(30em, 96%);
+  align-items: stretch;
+  margin-bottom: 0.55em;
+}
+.rank-col {
+  flex: 1 1 0;
+  background: rgba(12, 16, 28, 0.72);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 0.45em;
+  padding: 0.45em 0.4em 0.55em;
+  text-align: left;
+  min-height: 10em;
+}
+.rank-col-title {
+  font-size: 1.05em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
+  margin-bottom: 0.15em;
+}
+.rank-col-title.survival { color: #7dcea0; }
+.rank-col-title.timed { color: #c4b0e8; }
+.rank-formula {
+  font-size: 0.72em;
+  color: #8090a8;
+  text-align: center;
+  margin-bottom: 0.35em;
+  line-height: 1.25;
+}
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.88em;
+}
+.rank-list li {
+  display: grid;
+  grid-template-columns: 1.4em 1fr auto;
+  gap: 0.25em;
+  padding: 0.18em 0.2em;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  color: #d8e0f0;
+}
+.rank-list .rank-i { color: #a090c8; font-weight: 800; }
+.rank-list .rank-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.rank-list .rank-score { color: #ffe8a0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rank-empty { color: #7080a0; text-align: center; display: block !important; padding: 0.6em 0; }
+.rank-note, .rank-submit, .rank-formula-end {
+  font-size: 0.9em;
+  color: #a0b0c8;
+  margin: 0.15em 0;
+}
+.end-stats .rank-submit { color: #c4b0e8; font-weight: 700; }
+.end-stats .rank-formula { font-size: 0.82em; color: #8090a8; }
+
+@media (orientation: portrait) and (max-width: 520px) {
+  .wipe-btn {
+    right: 1.5%;
+    top: 58%;
+    min-width: 3.1em;
+    min-height: 3.5em;
+    font-size: 0.8em;
+  }
+  .rank-columns { flex-direction: column; }
+  .rank-col { min-height: 7em; }
+}

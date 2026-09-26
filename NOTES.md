@@ -80,3 +80,15 @@ Same original notes/hooks as battle preview — **not** Night of Nights / ZUN / 
 - Boss: Monarch frames 64px, r=48, HP ~2200+, damage 34; spawn still `BOSS_SPAWN_AT = 150`.
 - Upgrades: Orbit Guard, Pulse Laser; Multishot capped at 6 (filtered from pool).
 - Keep floating stick, soft dmg nums, calm/Nightfall BGM from v0.8. No portrait cover-fill UI zoom.
+
+
+---
+
+# v1.0 ship notes (2026-09-26)
+
+- Mob chase speed starts at **85%** of v0.9 baseline; every minute +1% of baseline; caps at 100% (minute 15). Applies to normal / king / boss (`baseSpeed * mobSpeedMul()`).
+- XP gems: blue (+10% normals), purple (kings, larger), triple gold on Monarch (~50×3). Wipe awards gems for fairness.
+- `MULTISHOT_MAX = 7`; Pulse Laser intervals 2.0→0.75 (L6 gold glitter + damage bump); Omni Beam special (8→12 rays); both capped out of pool.
+- Wipe HUD button (side) + Q/F; 120s cooldown; skips boss.
+- Rankings: localStorage `slimeBarrageLbSurvival` / `slimeBarrageLbTimed` + player name; side-by-side UI; submit on end. No Tomo Crossroad API reuse.
+- `VERSION = 'v1.0'`, cache-bust `?v=v10`.
