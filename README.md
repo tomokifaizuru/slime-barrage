@@ -1,10 +1,10 @@
-# Slime Barrage v1.15
+# Slime Barrage v1.16
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **defeat the Amber Colossus King** (Survival) or **win Timed at 6:00**.
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.15** — **Zoom** slider (Menu + Pause): Far **1.0** … Close **4.0**, default **1.76**, saved as `slimeBarrageZoom`; live-applies portrait `VIEW_ZOOM` only (landscape stays 1). Cache-bust `?v=1.15` (VERSION display still v1.15).
+> **v1.16** — Pink-Mint Monarch fires a slow **pink-mint blast** at the player every **5s** (10 dmg, shield/invuln respected). Cache-bust `?v=1.16`.
 
 ## How to play
 
@@ -67,6 +67,11 @@ Scoring:
 
 - **Survival:** `time×5 + kills×12 + lv×20`
 - **Timed:** `kills×10 + time×2 + lv×25`
+
+## What’s new in v1.16
+
+- Pink-Mint Monarch **ranged blast**: every **5 seconds** while alive, each Monarch fires a slow **large** pink-mint orb aimed at the player (**10 damage** on hit; Barrier Shield + invuln respected like body hits). Body contact damage (**34**) unchanged. Orbs destroy on hit or when far off-map.
+- Cache-bust `?v=1.16`.
 
 ## What’s new in v1.15
 

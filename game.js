@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v1.15
+ * Slime Barrage v1.16
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
@@ -23,10 +23,19 @@
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v1.15';
+  const VERSION = 'v1.16';
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
+  // Pink-Mint Monarch ranged blast (extra attack; body contact 34 stays)
+  const MONARCH_BLAST_INTERVAL = 5; // seconds between shots per Monarch
+  const MONARCH_BLAST_DAMAGE = 10;
+  const MONARCH_BLAST_SPEED = 95; // slow big orb
+  const MONARCH_BLAST_RADIUS = 22; // large readable blast
+  const MONARCH_BLAST_LIFE = 12; // failsafe; also culled far from player
+  const MONARCH_BLAST_PINK = '#f5a0c0';
+  const MONARCH_BLAST_MINT = '#7dcea0';
+  const MONARCH_BLAST_HI = '#ffe8f2';
   const VIEW_H_MIN = 300;
   const VIEW_H_MAX = 1400;
   // World→screen zoom. Landscape FOV baked into BASE_W (VIEW_ZOOM=1).
@@ -1657,6 +1666,7 @@
   // ---------- Game state ----------
   let state = 'MENU';
   let player, enemies, projectiles, gems, particles;
+  let monarchBlasts = []; // Pink-Mint Monarch ranged orbs
   let dmgNums = [];
   let obstacles = [];
   let cam = { x: 0, y: 0 };
@@ -1966,6 +1976,7 @@
     player = resetPlayer();
     enemies = [];
     projectiles = [];
+    monarchBlasts = [];
     gems = [];
     particles = [];
     dmgNums = [];
@@ -2152,6 +2163,7 @@
       isBoss: true,
       bossKind: 'monarch',
       bossName: 'Monarch',
+      blastCd: MONARCH_BLAST_INTERVAL * (0.55 + Math.random() * 0.45), // own timer (~2.75–5s to first shot)
     });
     addParticles(x, y, '#f5a0c0', 22);
     addParticles(x, y - 24, '#e8c84a', 12);
@@ -2271,6 +2283,109 @@
     }
     player.facing = Math.cos(baseAng) >= 0 ? 1 : -1;
     AudioFX.shoot();
+  }
+
+  /** Apply damage to player; respect Barrier Shield + invuln frames. Returns true if fatal. */
+  function hurtPlayer(amount) {
+    if (!player || amount <= 0) return false;
+    if (player.invuln > 0) return false;
+    let dmgLeft = amount;
+    if ((player.shield || 0) > 0) {
+      const absorbed = Math.min(player.shield, dmgLeft);
+      player.shield -= absorbed;
+      dmgLeft -= absorbed;
+      addParticles(player.x, player.y, '#7cf0ff', 6);
+    }
+    if (dmgLeft > 0) {
+      player.hp -= dmgLeft;
+      addParticles(player.x, player.y, '#ff6688', 8);
+      AudioFX.hurt();
+    } else {
+      AudioFX.hit();
+    }
+    player.invuln = 0.7;
+    flashHurt = 0.25;
+    if (player.hp <= 0) {
+      player.hp = 0;
+      showEnd(false);
+      return true;
+    }
+    return false;
+  }
+
+  function fireMonarchBlast(e) {
+    const dx = player.x - e.x, dy = player.y - e.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const spd = MONARCH_BLAST_SPEED;
+    monarchBlasts.push({
+      x: e.x,
+      y: e.y - Math.max(8, e.r * 0.15),
+      vx: (dx / d) * spd,
+      vy: (dy / d) * spd,
+      r: MONARCH_BLAST_RADIUS,
+      damage: MONARCH_BLAST_DAMAGE,
+      life: MONARCH_BLAST_LIFE,
+    });
+    addParticles(e.x, e.y - e.r * 0.2, MONARCH_BLAST_PINK, 10);
+    addParticles(e.x, e.y - e.r * 0.2, MONARCH_BLAST_MINT, 6);
+  }
+
+  function updateMonarchBlasts(dt) {
+    const lim2 = CLEANUP_DIST * CLEANUP_DIST;
+    for (let i = monarchBlasts.length - 1; i >= 0; i--) {
+      const b = monarchBlasts[i];
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.life -= dt;
+      const pdx = b.x - player.x, pdy = b.y - player.y;
+      if (b.life <= 0 || pdx * pdx + pdy * pdy > lim2) {
+        monarchBlasts.splice(i, 1);
+        continue;
+      }
+      const hdx = player.x - b.x, hdy = player.y - b.y;
+      if (hdx * hdx + hdy * hdy < (b.r + 8) ** 2) {
+        monarchBlasts.splice(i, 1);
+        if (hurtPlayer(b.damage)) return true; // fatal
+        addParticles(b.x, b.y, MONARCH_BLAST_PINK, 12);
+        addParticles(b.x, b.y, MONARCH_BLAST_MINT, 8);
+      }
+    }
+    return false;
+  }
+
+  function drawMonarchBlasts() {
+    for (const b of monarchBlasts) {
+      const s = worldToScreen(b.x, b.y);
+      const pulse = 1 + Math.sin(animT * 6 + b.x * 0.02) * 0.08;
+      const R = b.r * pulse;
+      // Soft mint outer glow
+      const g0 = ctx.createRadialGradient(s.x, s.y, R * 0.15, s.x, s.y, R * 1.35);
+      g0.addColorStop(0, 'rgba(255, 232, 242, 0.95)');
+      g0.addColorStop(0.35, 'rgba(245, 160, 192, 0.85)');
+      g0.addColorStop(0.7, 'rgba(125, 206, 160, 0.55)');
+      g0.addColorStop(1, 'rgba(125, 206, 160, 0)');
+      ctx.beginPath();
+      ctx.fillStyle = g0;
+      ctx.arc(s.x, s.y, R * 1.35, 0, Math.PI * 2);
+      ctx.fill();
+      // Solid readable core (pink → mint rim)
+      ctx.beginPath();
+      ctx.fillStyle = MONARCH_BLAST_PINK;
+      ctx.arc(s.x, s.y, R * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.strokeStyle = MONARCH_BLAST_MINT;
+      ctx.lineWidth = Math.max(3, R * 0.22);
+      ctx.arc(s.x, s.y, R * 0.82, 0, Math.PI * 2);
+      ctx.stroke();
+      // Highlight
+      ctx.beginPath();
+      ctx.fillStyle = MONARCH_BLAST_HI;
+      ctx.globalAlpha = 0.75;
+      ctx.arc(s.x - R * 0.22, s.y - R * 0.25, R * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
   }
 
   function dropGem(x, y, value, tier = 'blue') {
@@ -2980,6 +3095,8 @@
       const dx = e.x - player.x, dy = e.y - player.y;
       if (dx * dx + dy * dy > lim2) enemies.splice(i, 1);
     }
+    if (updateMonarchBlasts(dt)) return;
+
     for (let i = gems.length - 1; i >= 0; i--) {
       const g = gems[i];
       const dx = g.x - player.x, dy = g.y - player.y;
@@ -3187,29 +3304,17 @@
       e.y += (dy / d) * spd * dt;
       resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
 
-      if (d < e.r + 8 && player.invuln <= 0) {
-        let dmgLeft = e.damage;
-        if ((player.shield || 0) > 0) {
-          const absorbed = Math.min(player.shield, dmgLeft);
-          player.shield -= absorbed;
-          dmgLeft -= absorbed;
-          addParticles(player.x, player.y, '#7cf0ff', 6);
+      // Monarch ranged blast timer (independent per boss)
+      if (e.isBoss && e.bossKind === 'monarch') {
+        e.blastCd = (e.blastCd == null ? MONARCH_BLAST_INTERVAL : e.blastCd) - dt;
+        if (e.blastCd <= 0) {
+          fireMonarchBlast(e);
+          e.blastCd = MONARCH_BLAST_INTERVAL;
         }
-        if (dmgLeft > 0) {
-          player.hp -= dmgLeft;
-          addParticles(player.x, player.y, '#ff6688', 8);
-          AudioFX.hurt();
-        } else {
-          // Shield fully absorbed — softer ping
-          AudioFX.hit();
-        }
-        player.invuln = 0.7;
-        flashHurt = 0.25;
-        if (player.hp <= 0) {
-          player.hp = 0;
-          showEnd(false);
-          return;
-        }
+      }
+
+      if (d < e.r + 8) {
+        if (hurtPlayer(e.damage)) return;
       }
     }
 
@@ -3690,6 +3795,7 @@
         drawSortedWorld();
         drawOrbitAndLaser();
         drawProjectiles(); // sparks pass through foliage; drawn above for readability
+        drawMonarchBlasts(); // large pink-mint boss orbs above sparks
         drawParticles();
         drawDmgNums();
         drawMonarchIndicators();
