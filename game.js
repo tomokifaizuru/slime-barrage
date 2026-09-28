@@ -62,13 +62,13 @@
   const KING_SPAWN_INTERVAL = 240; // every 4 minutes
   const KING_SET_SCALE = 4 / 3; // +1/3 HP & speed per completed trio
   const ELITE_SPAWN_MIN_T = 60; // elite purple first eligible after 60s
-  // Hardcoded XP gem totals (final drop amounts).
-  const XP_BLUE_NORMAL = 2;
-  const XP_BLUE_PURPLE_TINT = 3; // purple-colored normal slime
-  const XP_ELITE_PURPLE = 26;
-  const XP_MONARCH_EACH = 50; // ×3 gold = 150
+  // Hardcoded XP gem totals (final drop amounts), halved from v1.1.
+  const XP_BLUE_NORMAL = 1;
+  const XP_BLUE_PURPLE_TINT = 2; // purple-colored normal slime (rounded from 1.5)
+  const XP_ELITE_PURPLE = 13;
+  const XP_MONARCH_EACH = 25; // ×3 gold = 75
   const XP_MONARCH_COUNT = 3;
-  const XP_KING = { frost: 70, crown: 85, amber: 100 }; // ×5 gold = 350 / 425 / 500
+  const XP_KING_TOTAL = { frost: 175, crown: 212, amber: 250 };
   const XP_KING_COUNT = 5;
   const SHIELD_PER_PICK = 50;
   const SHIELD_CAP = 200;
@@ -2092,7 +2092,7 @@
       baseDamage: 34,
       frame: 0,
       frameT: 0,
-      xp: 55,
+      xp: XP_MONARCH_EACH * XP_MONARCH_COUNT,
       isKing: false,
       isBoss: true,
       bossKind: 'monarch',
@@ -2144,7 +2144,7 @@
       baseDamage: 40 + typeIndex * 8,
       frame: 0,
       frameT: 0,
-      xp: 120 + typeIndex * 40,
+      xp: XP_KING_TOTAL[def.id] || XP_KING_TOTAL.frost,
       isKing: false,
       isBoss: true,
       bossKind: 'king',
@@ -2226,18 +2226,21 @@
     });
   }
 
-  /** XP gem tiers (hardcoded totals): blue 2/3, elite purple 26, Monarch 150, Kings 350/425/500. */
+  /** XP gem tiers (halved totals): blue 1/2, elite purple 13, Monarch 75, Kings 175/212/250. */
   function dropGemsForEnemy(e) {
     if (e.isBoss && e.bossKind === 'king') {
-      const each = XP_KING[e.kingId] || XP_KING.frost;
+      const total = XP_KING_TOTAL[e.kingId] || XP_KING_TOTAL.frost;
+      const base = Math.floor(total / XP_KING_COUNT);
+      const remainder = total % XP_KING_COUNT;
       for (let i = 0; i < XP_KING_COUNT; i++) {
         const a = (i / XP_KING_COUNT) * Math.PI * 2 + Math.random() * 0.4;
-        dropGem(e.x + Math.cos(a) * 22, e.y + Math.sin(a) * 16, each, 'gold');
+        const value = base + (i < remainder ? 1 : 0);
+        dropGem(e.x + Math.cos(a) * 22, e.y + Math.sin(a) * 16, value, 'gold');
       }
       return;
     }
     if (e.isBoss) {
-      // Triple gold — Monarch dump (50 × 3 = 150 total).
+      // Triple gold — Monarch dump (25 × 3 = 75 total).
       for (let i = 0; i < XP_MONARCH_COUNT; i++) {
         const a = (i / XP_MONARCH_COUNT) * Math.PI * 2 + Math.random() * 0.4;
         dropGem(e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 14, XP_MONARCH_EACH, 'gold');
@@ -3699,13 +3702,13 @@
           y: player.y + Math.sin(a) * (60 + (i % 3) * 28),
           r: 10, color: ['mint','pink','yellow','purple'][i % 4],
           hp: 20, maxHp: 20, speed: 30, damage: 8,
-          frame: i % 4, frameT: 0, xp: 2, isKing: false,
+          frame: i % 4, frameT: 0, xp: XP_BLUE_NORMAL, isKing: false,
         });
       }
       enemies.push({
         x: player.x + 90, y: player.y - 40, r: 16, color: 'king',
         hp: 100, maxHp: 100, speed: 25, damage: 15,
-        frame: 0, frameT: 0, xp: 12, isKing: true,
+        frame: 0, frameT: 0, xp: XP_ELITE_PURPLE, isKing: true,
       });
       timeAlive = sec;
       if (sec >= MONARCH_INTERVAL) {

@@ -4,7 +4,7 @@ A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoo
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.1** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival: starts **68%**, ramps **+2.5%/min**, caps **200%**; kings every **4 min from 4:00**; camera zoomed out ~20%; XP table hardcoded; Sneaker max **6**; HUD skill icons; gold sparks only. Cache-bust `?v=v11f`.
+> **v1.1** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival: starts **68%**, ramps **+2.5%/min**, caps **200%**; kings every **4 min from 4:00**; camera zoomed out ~20%; XP table hardcoded; Sneaker max **6**; HUD skill icons; gold sparks only. Cache-bust `?v=v11g`.
 
 ## How to play
 
@@ -50,13 +50,13 @@ Maxed skills still appear as **dimmed / unclickable** cards; the pool prefers av
 
 | Tier | Color | Source | Total XP |
 |------|-------|--------|----------|
-| Blue | cyan | Normal mint/pink/yellow | **2** |
-| Blue | cyan | Purple-tinted normal | **3** |
-| Purple | violet | Elite King slime | **26** |
-| Gold ×3 | gold | Pink-Mint Monarch | **150** (3×50) |
-| Gold ×5 | gold | Frostmint Regent | **350** (5×70) |
-| Gold ×5 | gold | Crown Jelly Sovereign | **425** (5×85) |
-| Gold ×5 | gold | Amber Colossus King | **500** (5×100) |
+| Blue | cyan | Normal mint/pink/yellow | **1** |
+| Blue | cyan | Purple-tinted normal | **2** |
+| Purple | violet | Elite King slime | **13** |
+| Gold ×3 | gold | Pink-Mint Monarch | **75** (3×25) |
+| Gold ×5 | gold | Frostmint Regent | **175** (5×35) |
+| Gold ×5 | gold | Crown Jelly Sovereign | **212** (43+43+42+42+42) |
+| Gold ×5 | gold | Amber Colossus King | **250** (5×50) |
 
 ### Rankings
 
@@ -76,7 +76,7 @@ Scoring:
 - Camera zoomed-out FOV baked into higher-res canvas (`BASE_W=600`, `VIEW_ZOOM=1`) + optional 2× buffer on retina.
 - Survival Amber kill shows **Continue?** (endless) or **End run** (claim victory).
 - Pink-Mint Monarch size **−20%**; **off-screen location arrow** when Monarch is outside the view.
-- XP gem totals hardcoded (2 / 3 / 26 / 150 / 350 / 425 / 500).
+- XP gem totals halved (1 / 2 / 13 / 75 / 175 / 212 / 250).
 - Sneaker Boost max **6**; Multishot stays gold/yellow sparks (no blue fireball).
 - Level-up cards + HUD chips show **skill icons**.
 - New skill: **Barrier Shield** (+50 absorb shield, additive, cap 200; HUD bar + chip + cyan ring).
