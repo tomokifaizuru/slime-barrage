@@ -30,11 +30,11 @@
   const VIEW_H_MIN = 300;
   const VIEW_H_MAX = 1400;
   // World→screen zoom. Landscape FOV baked into BASE_W (VIEW_ZOOM=1).
-  // Portrait zoom is user-tunable (Far 1.0 … Close 4.0); default ~2.2 for a
+  // Portrait zoom is user-tunable (Far 1.0 … Close 4.0); default ~1.76 for a
   // comfortable mobile action feel (not maxed at 4.0).
   const VIEW_ZOOM_MIN = 1.0;
   const VIEW_ZOOM_MAX = 4.0;
-  const VIEW_ZOOM_DEFAULT = 2.2;
+  const VIEW_ZOOM_DEFAULT = 1.76;
   const VIEW_ZOOM_LANDSCAPE = 1;
   function loadPortraitZoom() {
     let z = VIEW_ZOOM_DEFAULT;
@@ -912,7 +912,7 @@
   bindVolSlider(el.sfxVolPause, AudioFX.setSfxVol);
 
   function formatZoom(z) {
-    return (Math.round(z * 10) / 10).toFixed(1);
+    return String(Number(z.toFixed(2)));
   }
   function syncZoomUI() {
     const z = VIEW_ZOOM_PORTRAIT;
@@ -930,8 +930,8 @@
     let z = parseFloat(v);
     if (!isFinite(z)) z = VIEW_ZOOM_DEFAULT;
     z = Math.max(VIEW_ZOOM_MIN, Math.min(VIEW_ZOOM_MAX, z));
-    // Snap to 0.1 for stable slider/storage values
-    z = Math.round(z * 10) / 10;
+    // Snap to 0.01 so the v1.14b default (1.76) remains exact.
+    z = Math.round(z * 100) / 100;
     VIEW_ZOOM_PORTRAIT = z;
     try { localStorage.setItem('slimeBarrageZoom', String(z)); } catch (_) {}
     syncZoomUI();
