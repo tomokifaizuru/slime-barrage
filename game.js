@@ -7,7 +7,7 @@
  * Portrait/landscape world zoom, infinite meadow, Survival + Timed modes.
  * Orbit Guard (10), Pulse Laser L1–10, Omni (after Laser 6), Fairy (5 / L8).
  * Wipe skill, Barrier Shield, XP gem tiers, HP regen, HUD run chips.
- * Multishot/Sharp/Rapid/Sneaker max 8; Pierce 6; HP 200; Survival 80%→220%.
+ * Multishot/Sharp/Rapid/Sneaker max 8; Pierce 6; HP 200; Survival 68%→140%.
  * Survival win on Amber Colossus; global rankings (fresh gameIds 18/19).
  */
 (() => {
@@ -46,11 +46,11 @@
   const MAX_HP_CAP = 200;
   const HP_REGEN_INTERVAL = 2; // +1 HP every 2s while PLAYING
   const WIPE_COOLDOWN = 120;
-  // Survival difficulty: 80% baseline at t=0, +3.5%/min, max 220%.
-  // Spawn interval uses this same scale, so initial mob spawn rate is 80%.
-  const SURVIVAL_DIFF_START = 0.80;
-  const SURVIVAL_DIFF_RAMP = 0.035;
-  const SURVIVAL_DIFF_MAX = 2.20;
+  // Survival difficulty: 68% baseline at t=0, +1%/min, max 140%.
+  // Spawn interval uses this same scale, so initial mob spawn rate is 68%.
+  const SURVIVAL_DIFF_START = 0.68;
+  const SURVIVAL_DIFF_RAMP = 0.01;
+  const SURVIVAL_DIFF_MAX = 1.40;
   // Big King Slimes (Survival): 5:00 / 10:00 / 15:00. Amber kill = win.
   const KING_SPAWN_TIMES = [300, 600, 900]; // 5:00, 10:00, 15:00
   const SHIELD_PER_PICK = 50;
@@ -1660,7 +1660,7 @@
     return Math.max(0.75, 2.0 - (cadenceLv - 1) * 0.25);
   }
 
-  /** Survival difficulty multiplier: 80% at t=0 → +3.5%/min → max 220%. */
+  /** Survival difficulty multiplier: 68% at t=0 → +1%/min → max 140%. */
   function survivalDiffMul() {
     const mins = Math.floor(timeAlive / 60);
     return Math.min(SURVIVAL_DIFF_MAX, SURVIVAL_DIFF_START + mins * SURVIVAL_DIFF_RAMP);
@@ -1958,7 +1958,7 @@
 
   // ---------- Spawning ----------
   function difficultyScale() {
-    // Survival: 80% → +3.5%/min → max 220%. Timed: mild classic curve.
+    // Survival: 68% → +1%/min → max 140%. Timed: mild classic curve.
     if (playMode === 'survival') return survivalDiffMul();
     return 1 + timeAlive / 420;
   }
