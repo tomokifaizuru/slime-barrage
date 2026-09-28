@@ -682,3 +682,30 @@ html, body {
 .card.card-maxed .card-desc {
   color: #7a8090;
 }
+
+
+/* Run HUD chips — left column under HP/XP (v1.1) */
+.run-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.22em;
+  margin-top: 0.35em;
+  max-width: 12.5em;
+  pointer-events: none;
+  max-height: 55vh;
+  overflow: hidden;
+}
+.run-chips.hidden { display: none !important; }
+.run-chips .lvl-chip {
+  font-size: 0.62em;
+  padding: 0.14em 0.4em;
+  background: rgba(12, 18, 30, 0.78);
+}
+@media (orientation: portrait) and (max-width: 520px) {
+  .run-chips {
+    max-width: 10.5em;
+    max-height: 42vh;
+  }
+  .run-chips .lvl-chip { font-size: 0.56em; }
+}

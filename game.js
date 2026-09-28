@@ -1,13 +1,13 @@
 /**
- * Slime Barrage v1.0
+ * Slime Barrage v1.1
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
- * HTMLAudio BGM (Moonlit calm / Nightfall boss) with procedural fallback.
- * Mid-run Pink-Mint Monarch boss, floating touch stick, soft damage numbers.
+ * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
+ * Mid-run Pink-Mint Monarch×2 every 3m; Survival Big Kings at 7/14/21.
  * Portrait/landscape world zoom, infinite meadow, Survival + Timed modes.
- * Orbit Guard, Pulse Laser (L6 gold), Omni Beam (after Laser 6), Orbiting Fairy.
- * Wipe skill, XP gem tiers, HP regen, dimmed-max cards, tougher Monarch.
- * Multishot max 7; Pierce max 6; Max HP 200; mob pace ramp; local rankings.
+ * Orbit Guard (10), Pulse Laser L1–10, Omni (after Laser 6), Fairy (5 / L8).
+ * Wipe skill, XP gem tiers, HP regen, dimmed-max cards, HUD run chips.
+ * Multishot/Sharp/Rapid/Sneaker max 8; Pierce 6; HP 200; Survival 30%→200%.
  */
 (() => {
   'use strict';
@@ -20,25 +20,42 @@
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v1.0';
-  const BOSS_SPAWN_AT = 150; // ~2:30 into Timed 6:00 / Survival from start
+  const VERSION = 'v1.1';
+  const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
+  const MONARCH_COUNT = 2;
+  const MONARCH_SIZE_MUL = 1.5; // +50% vs v1.0 rebuild (r 72→108, frames 96→144)
   const VIEW_H_MIN = 270;
   const VIEW_H_MAX = 1200;
   // World→screen zoom (mutable; recomputed on resize/orientation). UI stays CSS-sized.
   const VIEW_ZOOM_PORTRAIT = 1.55;
   const VIEW_ZOOM_LANDSCAPE = 1.05;
   let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
-  const MULTISHOT_MAX = 7;
+  const MULTISHOT_MAX = 8;
   const PIERCE_MAX = 6;
-  const LASER_MAX_LEVEL = 6;
+  const LASER_CADENCE_MAX = 6; // L1–6 cadence 2.0→0.75; L7–10 keep 0.75 + thicken
+  const LASER_MAX_LEVEL = 10;
+  const OMNI_UNLOCK_LASER = 6; // Omni gated until Pulse Laser 6
   const OMNI_MAX_LEVEL = 3;
-  const FAIRY_MAX = 5;
-  const ORBIT_MAX = 8; // orb count cap (first pick grants 2)
+  const FAIRY_MAX_ON_SCREEN = 5;
+  const FAIRY_MAX = 8; // skill level cap
+  const ORBIT_MAX = 10; // orb count cap (first pick grants 2)
+  const DMG_MAX = 8;
+  const RATE_MAX = 8;
+  const SPD_MAX = 8; // Sneaker Boost
   const MAX_HP_CAP = 200;
   const HP_REGEN_INTERVAL = 2; // +1 HP every 2s while PLAYING
   const WIPE_COOLDOWN = 120;
-  const MOB_SPEED_START = 0.85; // −15% at run start vs baseline
-  const MOB_SPEED_RAMP = 0.01;  // +1% of baseline per minute → 100% at min 15
+  // Survival difficulty: 30% baseline at t=0, +5%/min, max 200%.
+  const SURVIVAL_DIFF_START = 0.30;
+  const SURVIVAL_DIFF_RAMP = 0.05;
+  const SURVIVAL_DIFF_MAX = 2.0;
+  // Big King Slimes (Survival): first at 7:00, then every 7 minutes.
+  const KING_SPAWN_TIMES = [420, 840, 1260]; // 7:00, 14:00, 21:00
+  const KING_DEFS = [
+    { id: 'frost', color: 'kingFrost', name: 'Frostmint Regent', r: 120, frameSize: 160 },
+    { id: 'crown', color: 'kingCrown', name: 'Crown Jelly Sovereign', r: 136, frameSize: 176 },
+    { id: 'amber', color: 'kingAmber', name: 'Amber Colossus King', r: 152, frameSize: 192 },
+  ];
   const CLEANUP_DIST = 980;
   const PROP_CHUNK = 360;
   const PROP_KEEP_CHUNKS = 3; // ± chunks around player
@@ -82,6 +99,7 @@
     cards: document.getElementById('cards'),
     levelupTitle: document.getElementById('levelupTitle'),
     levelupStatus: document.getElementById('levelupStatus'),
+    runChips: document.getElementById('runChips'),
     endTitle: document.getElementById('endTitle'),
     endStats: document.getElementById('endStats'),
     wipeBtn: document.getElementById('wipeBtn'),
@@ -217,7 +235,7 @@
     // HTMLAudio tracks (preferred); procedural sequencer is fallback only.
     const HTML_BGM_GAIN = 0.42;
     const HTML_CROSSFADE = 0.55;
-    let htmlTracks = { calm: null, nightfall: null };
+    let htmlTracks = { calm: null, nightfall: null, throne: null };
     let htmlTrackName = 'calm';
     let htmlReady = false;
     let htmlFailed = false;
@@ -286,14 +304,17 @@
       try {
         const calm = new Audio('assets/bgm-moonlit-calm.mp3');
         const night = new Audio('assets/bgm-nightfall.mp3');
-        calm.loop = true; night.loop = true;
-        calm.preload = 'auto'; night.preload = 'auto';
-        calm.volume = 0; night.volume = 0;
+        const throne = new Audio('assets/bgm-throne-breakers.mp3');
+        calm.loop = true; night.loop = true; throne.loop = true;
+        calm.preload = 'auto'; night.preload = 'auto'; throne.preload = 'auto';
+        calm.volume = 0; night.volume = 0; throne.volume = 0;
         const fail = () => { htmlFailed = true; htmlUsing = false; };
         calm.addEventListener('error', fail);
         night.addEventListener('error', fail);
+        throne.addEventListener('error', fail);
         htmlTracks.calm = calm;
         htmlTracks.nightfall = night;
+        htmlTracks.throne = throne;
         htmlReady = true;
         return true;
       } catch (_) {
@@ -411,7 +432,7 @@
     }
 
     function setBgmTrack(name, fade) {
-      if (name !== 'calm' && name !== 'nightfall') name = 'calm';
+      if (name !== 'calm' && name !== 'nightfall' && name !== 'throne') name = 'calm';
       if (!bgmWanted) { htmlTrackName = name; return; }
       if (htmlUsing || (!htmlFailed && ensureHtmlTracks())) {
         if (htmlTrackName === name && htmlUsing) {
@@ -616,6 +637,12 @@
     }
 
     function shoot() { tone(880, 0.06, 'square', 0.08, 420); }
+    function laser() {
+      // Distinct Pulse Laser zap — brighter + shorter than shoot
+      tone(1240, 0.045, 'square', 0.11, 620);
+      tone(1860, 0.03, 'sawtooth', 0.06, 900);
+      noise(0.035, 0.05, 2400);
+    }
     function hit() { tone(220, 0.05, 'triangle', 0.12, 110); noise(0.04, 0.06, 800); }
     function kill() { tone(160, 0.08, 'sawtooth', 0.1, 60); noise(0.07, 0.08, 600); }
     function xp() { tone(990, 0.05, 'sine', 0.05, 1320); }
@@ -770,7 +797,7 @@
     return {
       unlock, toggleMute, setMuted, isMuted,
       getMusicVol, getSfxVol, setMusicVol, setSfxVol, setBgmDucked, setBgmTrack,
-      shoot, hit, kill, xp, levelUp, hurt, death, win, click,
+      shoot, laser, hit, kill, xp, levelUp, hurt, death, win, click,
       startBgm, stopBgm,
     };
   })();
@@ -1243,14 +1270,184 @@
     return frames;
   }
 
+
+  // Big King Slimes — procedural pixel frames (draft PNGs are reference only).
+  function makeKingFrostFrames(size = 160) {
+    const ice = { mid: '#7ef0d4', dark: '#2a9aaa', hi: '#e8fff8', deep: '#1a7088', spot: '#a8fff0', glow: '#c8ffff' };
+    const frames = [];
+    const stretches = [{ sy: 0, sh: 0 }, { sy: -1, sh: 2 }, { sy: 1, sh: -2 }, { sy: 0, sh: 1 }];
+    for (const st of stretches) {
+      frames.push(makeSprite(size + 12, size + 16, (g, w, h) => {
+        const crownH = 14;
+        const baseY = crownH + 2 + st.sy;
+        const bh = size - 6 + st.sh;
+        const bw = size - 4 - Math.floor(st.sh * 0.5);
+        const bx = Math.floor((w - bw) / 2);
+        const mid = Math.floor(bh / 2);
+        for (let y = 0; y < bh; y++) {
+          const t = Math.abs(y - mid) / (mid || 1);
+          const inset = Math.floor(t * t * (bw / 3.0));
+          const col = y > bh * 0.74 ? ice.dark : (y < bh * 0.2 ? ice.hi : ice.mid);
+          fillRect(g, bx + inset, baseY + y, bw - inset * 2, 1, col);
+        }
+        fillRect(g, bx + 6, baseY + bh - 8, bw - 12, 4, ice.deep);
+        fillRect(g, bx + Math.floor(bw * 0.16), baseY + 4, Math.max(4, Math.floor(bw * 0.2)), 3, ice.glow);
+        fillRect(g, bx + Math.floor(bw * 0.58), baseY + 7, Math.max(2, Math.floor(bw * 0.1)), 2, '#ffffff');
+        // sparkle crystals inside
+        for (let i = 0; i < 6; i++) {
+          px(g, bx + 8 + (i * 11) % (bw - 16), baseY + 10 + (i * 7) % (bh - 20), ice.glow, 1 + (i % 2));
+        }
+        const cx = Math.floor(w / 2);
+        const eyeY = baseY + Math.floor(bh * 0.36);
+        fillRect(g, cx - 10, eyeY, 5, 5, '#1a3040');
+        fillRect(g, cx + 5, eyeY, 5, 5, '#1a3040');
+        px(g, cx - 9, eyeY + 1, '#ffffff', 2);
+        px(g, cx + 6, eyeY + 1, '#ffffff', 2);
+        px(g, cx - 4, eyeY + 7, '#f5a0c0', 2);
+        px(g, cx + 3, eyeY + 7, '#f5a0c0', 2);
+        px(g, cx - 1, eyeY + 10, '#1a3040');
+        px(g, cx, eyeY + 11, '#1a3040');
+        px(g, cx + 1, eyeY + 10, '#1a3040');
+        // silver crystal tiara
+        fillRect(g, cx - 10, 6, 20, 4, '#c8d8e8');
+        fillRect(g, cx - 10, 5, 4, 5, '#a8b8c8');
+        fillRect(g, cx + 6, 5, 4, 5, '#a8b8c8');
+        // three ice crystals
+        fillRect(g, cx - 2, 0, 4, 8, '#e8f8ff');
+        fillRect(g, cx - 1, 0, 2, 8, '#ffffff');
+        fillRect(g, cx - 8, 2, 3, 6, '#c8f0ff');
+        fillRect(g, cx + 5, 2, 3, 6, '#c8f0ff');
+        px(g, cx, 1, '#a0e8ff');
+        fillRect(g, bx + 5, baseY + bh, bw - 10, 2, 'rgba(0,0,0,0.28)');
+      }));
+    }
+    return frames;
+  }
+
+  function makeKingCrownFrames(size = 176) {
+    const jelly = { mid: '#9a6ad8', dark: '#5a3088', hi: '#e0c8ff', deep: '#3a1860', spot: '#c090f0', gold: '#e8c84a' };
+    const frames = [];
+    const stretches = [{ sy: 0, sh: 0 }, { sy: -1, sh: 2 }, { sy: 1, sh: -2 }, { sy: 0, sh: 1 }];
+    for (const st of stretches) {
+      frames.push(makeSprite(size + 12, size + 18, (g, w, h) => {
+        const crownH = 12;
+        const baseY = crownH + 4 + st.sy;
+        const bh = size - 6 + st.sh;
+        const bw = size - 4 - Math.floor(st.sh * 0.5);
+        const bx = Math.floor((w - bw) / 2);
+        const mid = Math.floor(bh / 2);
+        for (let y = 0; y < bh; y++) {
+          const t = Math.abs(y - mid) / (mid || 1);
+          const inset = Math.floor(t * t * (bw / 3.1));
+          const col = y > bh * 0.72 ? jelly.dark : (y < bh * 0.2 ? jelly.hi : jelly.mid);
+          fillRect(g, bx + inset, baseY + y, bw - inset * 2, 1, col);
+        }
+        fillRect(g, bx + 6, baseY + bh - 8, bw - 12, 4, jelly.deep);
+        fillRect(g, bx + Math.floor(bw * 0.18), baseY + 4, Math.max(4, Math.floor(bw * 0.22)), 3, jelly.hi);
+        // body sparkles
+        for (let i = 0; i < 5; i++) {
+          px(g, bx + 10 + (i * 13) % (bw - 20), baseY + 12 + (i * 9) % (bh - 24), '#ffe8a0', 1);
+        }
+        const cx = Math.floor(w / 2);
+        const eyeY = baseY + Math.floor(bh * 0.38);
+        fillRect(g, cx - 10, eyeY, 5, 5, '#2a1040');
+        fillRect(g, cx + 5, eyeY, 5, 5, '#2a1040');
+        px(g, cx - 9, eyeY + 1, '#ffffff', 2);
+        px(g, cx + 6, eyeY + 1, '#ffffff', 2);
+        px(g, cx - 2, eyeY + 10, '#2a1040');
+        px(g, cx - 1, eyeY + 11, '#2a1040');
+        px(g, cx, eyeY + 10, '#2a1040');
+        px(g, cx + 1, eyeY + 11, '#2a1040');
+        px(g, cx + 2, eyeY + 10, '#2a1040');
+        // gold crown (slightly left-biased like draft)
+        const kx = cx - 4;
+        fillRect(g, kx - 8, 5, 18, 5, jelly.gold);
+        fillRect(g, kx - 8, 3, 4, 5, jelly.gold);
+        fillRect(g, kx - 1, 1, 4, 6, '#f0e070');
+        fillRect(g, kx + 6, 3, 4, 5, jelly.gold);
+        fillRect(g, kx - 7, 8, 16, 2, '#c9a030');
+        px(g, kx, 2, '#a855f7', 2);
+        px(g, kx - 6, 5, '#a855f7');
+        px(g, kx + 7, 5, '#a855f7');
+        fillRect(g, bx + 5, baseY + bh, bw - 10, 2, 'rgba(0,0,0,0.28)');
+      }));
+    }
+    return frames;
+  }
+
+  function makeKingAmberFrames(size = 192) {
+    const amber = { mid: '#f0b840', dark: '#c07018', hi: '#ffe8a0', deep: '#8a4808', glow: '#fff0c0' };
+    const mantle = { mid: '#3a2818', dark: '#1a1008', hi: '#5a4030' };
+    const frames = [];
+    const stretches = [{ sy: 0, sh: 0 }, { sy: -1, sh: 2 }, { sy: 1, sh: -2 }, { sy: 0, sh: 1 }];
+    for (const st of stretches) {
+      frames.push(makeSprite(size + 14, size + 18, (g, w, h) => {
+        const crownH = 10;
+        const baseY = crownH + 4 + st.sy;
+        const bh = size - 4 + st.sh;
+        const bw = size - 2 - Math.floor(st.sh * 0.5);
+        const bx = Math.floor((w - bw) / 2);
+        const mid = Math.floor(bh / 2);
+        // dark mantle sides first (behind body edges)
+        fillRect(g, bx - 4, baseY + Math.floor(bh * 0.35), 10, Math.floor(bh * 0.55), mantle.mid);
+        fillRect(g, bx + bw - 6, baseY + Math.floor(bh * 0.35), 10, Math.floor(bh * 0.55), mantle.mid);
+        fillRect(g, bx - 2, baseY + bh - 10, bw + 4, 8, mantle.dark);
+        for (let y = 0; y < bh; y++) {
+          const t = Math.abs(y - mid) / (mid || 1);
+          const inset = Math.floor(t * t * (bw / 3.0));
+          const col = y > bh * 0.7 ? amber.dark : (y < bh * 0.22 ? amber.hi : amber.mid);
+          fillRect(g, bx + inset, baseY + y, bw - inset * 2, 1, col);
+        }
+        // inner glow
+        fillRect(g, bx + Math.floor(bw * 0.28), baseY + Math.floor(bh * 0.32), Math.floor(bw * 0.44), Math.floor(bh * 0.28), amber.glow);
+        fillRect(g, bx + Math.floor(bw * 0.16), baseY + 4, Math.max(4, Math.floor(bw * 0.2)), 3, '#ffffff');
+        // mantle drapes over lower sides
+        fillRect(g, bx - 3, baseY + Math.floor(bh * 0.55), 8, Math.floor(bh * 0.4), mantle.hi);
+        fillRect(g, bx + bw - 5, baseY + Math.floor(bh * 0.55), 8, Math.floor(bh * 0.4), mantle.hi);
+        const cx = Math.floor(w / 2);
+        const eyeY = baseY + Math.floor(bh * 0.36);
+        // stern brows + eyes
+        fillRect(g, cx - 11, eyeY - 2, 6, 2, '#2a1810');
+        fillRect(g, cx + 5, eyeY - 2, 6, 2, '#2a1810');
+        fillRect(g, cx - 10, eyeY, 5, 4, '#1a1008');
+        fillRect(g, cx + 5, eyeY, 5, 4, '#1a1008');
+        px(g, cx - 9, eyeY + 1, '#ffffff', 1);
+        px(g, cx + 6, eyeY + 1, '#ffffff', 1);
+        // integrated 5-point amber crown
+        fillRect(g, cx - 12, 6, 24, 5, amber.mid);
+        fillRect(g, cx - 12, 3, 4, 6, amber.dark);
+        fillRect(g, cx - 6, 1, 4, 7, amber.hi);
+        fillRect(g, cx - 1, 0, 3, 8, '#fff8d0');
+        fillRect(g, cx + 3, 1, 4, 7, amber.hi);
+        fillRect(g, cx + 9, 3, 4, 6, amber.dark);
+        fillRect(g, bx + 6, baseY + bh, bw - 12, 2, 'rgba(0,0,0,0.3)');
+      }));
+    }
+    return frames;
+  }
+
+  const MONARCH_FRAME_SIZE = Math.round(96 * MONARCH_SIZE_MUL);
+  const MONARCH_RADIUS = Math.round(72 * MONARCH_SIZE_MUL);
+
   const slimeFrames = {
     mint: makeSlimeFrames(slimePalettes.mint, 16),
     pink: makeSlimeFrames(slimePalettes.pink, 16),
     yellow: makeSlimeFrames(slimePalettes.yellow, 16),
     purple: makeSlimeFrames(slimePalettes.purple, 16),
     king: makeSlimeFrames(slimePalettes.mint, 22, true),
-    monarch: makeMonarchFrames(96),
+    monarch: makeMonarchFrames(MONARCH_FRAME_SIZE),
+    kingFrost: makeKingFrostFrames(KING_DEFS[0].frameSize),
+    kingCrown: makeKingCrownFrames(KING_DEFS[1].frameSize),
+    kingAmber: makeKingAmberFrames(KING_DEFS[2].frameSize),
   };
+
+  const projSpriteBlue = makeSprite(8, 8, (g) => {
+    fillRect(g, 3, 0, 2, 8, '#7cf0ff');
+    fillRect(g, 0, 3, 8, 2, '#7cf0ff');
+    fillRect(g, 2, 2, 4, 4, '#40b8f0');
+    fillRect(g, 3, 3, 2, 2, '#ffffff');
+  });
+
 
   const projSprite = makeSprite(6, 6, (g) => {
     fillRect(g, 2, 0, 2, 6, '#ffe8a0');
@@ -1353,8 +1550,9 @@
   let animT = 0;
   let flashHurt = 0;
   let menuPulse = 0;
-  let bossSpawned = false;
-  let bossAlive = false;
+  let nextMonarchAt = MONARCH_INTERVAL; // first wave at 3:00
+  let nextKingIndex = 0; // Survival Big Kings 0..2
+  let moveTrails = []; // Sneaker Boost visual trails
   let playMode = localStorage.getItem('slimeBarrageMode') === 'survival' ? 'survival' : 'timed';
   let lasers = []; // active beam visuals {x,y,ang,life,damage,hit,gold,omni}
   let bestSurvival = parseFloat(localStorage.getItem('slimeBarrageBestSurvival') || '0') || 0;
@@ -1364,9 +1562,21 @@
 
 
   const UPGRADE_DEFS = [
-    { id: 'dmg', name: 'Sharp Spark', desc: '+25% projectile damage', apply: p => { p.damage = Math.round(p.damage * 1.25); } },
-    { id: 'rate', name: 'Rapid Fire', desc: '+20% fire rate', apply: p => { p.fireCdMax = Math.max(0.12, p.fireCdMax * 0.8); } },
-    { id: 'spd', name: 'Sneaker Boost', desc: '+15% move speed', apply: p => { p.speed *= 1.15; } },
+    { id: 'dmg', name: 'Sharp Spark', desc: '+25% projectile damage (max 8)', apply: p => {
+      if ((p.dmgLevel || 0) >= DMG_MAX) return;
+      p.dmgLevel = (p.dmgLevel || 0) + 1;
+      p.damage = Math.round(p.damage * 1.25);
+    } },
+    { id: 'rate', name: 'Rapid Fire', desc: '+20% fire rate (max 8)', apply: p => {
+      if ((p.rateLevel || 0) >= RATE_MAX) return;
+      p.rateLevel = (p.rateLevel || 0) + 1;
+      p.fireCdMax = Math.max(0.12, p.fireCdMax * 0.8);
+    } },
+    { id: 'spd', name: 'Sneaker Boost', desc: '+15% move speed (max 8)', apply: p => {
+      if ((p.spdLevel || 0) >= SPD_MAX) return;
+      p.spdLevel = (p.spdLevel || 0) + 1;
+      p.speed *= 1.15;
+    } },
     { id: 'hp', name: 'Hoodie Padding', desc: '+20 max HP & heal 20 (cap 200)', apply: p => {
       if (p.maxHp >= MAX_HP_CAP) return;
       const add = Math.min(20, MAX_HP_CAP - p.maxHp);
@@ -1374,51 +1584,74 @@
       p.hp = Math.min(p.maxHp, p.hp + add);
     } },
     { id: 'magnet', name: 'Gem Magnet', desc: '+40% pickup range', apply: p => { p.magnet *= 1.4; } },
-    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 7)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
+    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 8 · blue fireballs)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
     { id: 'pierce', name: 'Pierce Shot', desc: 'Projectiles pierce +1 (max 6)', apply: p => { p.pierce = Math.min(PIERCE_MAX, p.pierce + 1); } },
     { id: 'heal', name: 'Snack Break', desc: 'Restore 40 HP', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
-    { id: 'orbit', name: 'Orbit Guard', desc: 'Shield orbs spin & smash', apply: p => {
+    { id: 'orbit', name: 'Orbit Guard', desc: 'Shield orbs spin & smash (max 10)', apply: p => {
       if (!p.orbitOrbs) { p.orbitOrbs = 2; p.orbitRadius = 44; }
       else if (p.orbitOrbs < ORBIT_MAX) {
         p.orbitOrbs += 1;
-        p.orbitRadius = Math.min(78, p.orbitRadius + 6);
+        p.orbitRadius = Math.min(90, p.orbitRadius + 5);
       }
     } },
-    { id: 'laser', name: 'Pulse Laser', desc: 'Beam clock: 2.0s → 0.75s (max 6)', apply: p => {
+    { id: 'laser', name: 'Pulse Laser', desc: 'L1–6 cadence 2.0→0.75s · L7–10 thicker (max 10)', apply: p => {
       p.laserLevel = Math.min(LASER_MAX_LEVEL, (p.laserLevel || 0) + 1);
-      // L1=2.0, L2=1.75 … L6=0.75
-      p.laserCdMax = Math.max(0.75, 2.0 - (p.laserLevel - 1) * 0.25);
-      p.laserDamage = 32 + p.laserLevel * 16 + (p.laserLevel >= LASER_MAX_LEVEL ? 24 : 0);
+      // L1=2.0 … L6=0.75; L7–10 keep 0.75 cadence, thicken instead
+      const cadenceLv = Math.min(LASER_CADENCE_MAX, p.laserLevel);
+      p.laserCdMax = Math.max(0.75, 2.0 - (cadenceLv - 1) * 0.25);
+      const thickBonus = Math.max(0, p.laserLevel - LASER_CADENCE_MAX);
+      p.laserDamage = 32 + p.laserLevel * 16 + (p.laserLevel >= LASER_CADENCE_MAX ? 24 : 0) + thickBonus * 10;
       if (p.laserCd <= 0) p.laserCd = 0.5;
     } },
     { id: 'omni', name: 'Omni Beam', desc: 'SPECIAL · needs Laser 6 · 8-way burst', special: true, apply: p => {
-      if ((p.laserLevel || 0) < LASER_MAX_LEVEL) return;
+      if ((p.laserLevel || 0) < OMNI_UNLOCK_LASER) return;
       p.omniLevel = Math.min(OMNI_MAX_LEVEL, (p.omniLevel || 0) + 1);
       p.omniCdMax = Math.max(2.4, 5.0 - p.omniLevel * 0.6);
       p.omniDamage = 20 + p.omniLevel * 14;
       p.omniRays = p.omniLevel >= 3 ? 12 : 8;
       if (p.omniCd <= 0) p.omniCd = 1.0;
     } },
-    { id: 'fairy', name: 'Orbiting Fairy', desc: 'Cute fairy orbits & snipes (max 5)', apply: p => {
+    { id: 'fairy', name: 'Orbiting Fairy', desc: 'Up to 5 fairies · L6–8 gold aura (max 8)', apply: p => {
       p.fairyLevel = Math.min(FAIRY_MAX, (p.fairyLevel || 0) + 1);
-      // 1→2→3 fairies by L1/L2/L3; L4–L5 boost rate & damage
-      p.fairyCount = Math.min(3, p.fairyLevel);
-      p.fairyDamage = 3 + p.fairyLevel * 1.5; // ~4.5 … 10.5 (modest vs main gun)
-      p.fairyCdMax = Math.max(0.18, 0.42 - (p.fairyLevel - 1) * 0.045);
-      p.fairyRadius = 52 + Math.min(18, (p.fairyLevel - 1) * 4);
+      p.fairyCount = Math.min(FAIRY_MAX_ON_SCREEN, p.fairyLevel);
+      // Modest early; L6–8 ramp damage harder
+      const goldBoost = Math.max(0, p.fairyLevel - 5);
+      p.fairyDamage = 3 + p.fairyLevel * 1.6 + goldBoost * 3.5;
+      p.fairyCdMax = Math.max(0.14, 0.42 - (p.fairyLevel - 1) * 0.035);
+      p.fairyRadius = 52 + Math.min(24, (p.fairyLevel - 1) * 3);
       if (p.fairyCd <= 0) p.fairyCd = 0.3;
     } },
   ];
 
   function laserIntervalForLevel(lv) {
     if (lv <= 0) return 2.0;
-    return Math.max(0.75, 2.0 - (Math.min(LASER_MAX_LEVEL, lv) - 1) * 0.25);
+    const cadenceLv = Math.min(LASER_CADENCE_MAX, lv);
+    return Math.max(0.75, 2.0 - (cadenceLv - 1) * 0.25);
   }
 
-  /** Mob chase-speed multiplier vs baseline: 85% at t=0 → 100% at minute 15. */
-  function mobSpeedMul() {
+  /** Survival difficulty multiplier: 30% at t=0 → +5%/min → max 200%. */
+  function survivalDiffMul() {
     const mins = Math.floor(timeAlive / 60);
-    return Math.min(1.0, MOB_SPEED_START + mins * MOB_SPEED_RAMP);
+    return Math.min(SURVIVAL_DIFF_MAX, SURVIVAL_DIFF_START + mins * SURVIVAL_DIFF_RAMP);
+  }
+
+  /** Mob chase-speed multiplier vs baseline. */
+  function mobSpeedMul() {
+    if (playMode === 'survival') return survivalDiffMul();
+    // Timed: mild 90%→110% over the 6:00 window
+    return Math.min(1.1, 0.9 + timeAlive / 1800);
+  }
+
+  function anyMonarchAlive() {
+    return enemies.some(e => e.isBoss && e.bossKind === 'monarch');
+  }
+  function anyKingAlive() {
+    return enemies.some(e => e.isBoss && e.bossKind === 'king');
+  }
+  function syncBossBgm(fade) {
+    if (anyKingAlive()) AudioFX.setBgmTrack('throne', fade !== false);
+    else if (anyMonarchAlive()) AudioFX.setBgmTrack('nightfall', fade !== false);
+    else AudioFX.setBgmTrack('calm', fade !== false);
   }
 
   function resetPlayer() {
@@ -1431,6 +1664,7 @@
       damage: 12,
       fireCd: 0, fireCdMax: 0.45,
       multishot: 1, pierce: 0,
+      dmgLevel: 0, rateLevel: 0, spdLevel: 0,
       magnet: 48,
       invuln: 0,
       facing: 1,
@@ -1599,8 +1833,9 @@
     spawnTimer = 0.5;
     killCount = 0;
     flashHurt = 0;
-    bossSpawned = false;
-    bossAlive = false;
+    nextMonarchAt = MONARCH_INTERVAL;
+    nextKingIndex = 0;
+    moveTrails = [];
     wipeCd = WIPE_COOLDOWN; // not ready at run start — full 120s CD first
     propChunkCX = null;
     propChunkCY = null;
@@ -1627,7 +1862,9 @@
     AudioFX.setBgmDucked(false);
     AudioFX.setBgmTrack('calm', false);
     AudioFX.stopBgm(true);
-    bossAlive = false;
+    nextMonarchAt = MONARCH_INTERVAL;
+    nextKingIndex = 0;
+    moveTrails = [];
     resetStick();
     state = 'MENU';
     showOnly('menu');
@@ -1662,6 +1899,7 @@
     }
     el.kills.textContent = 'Kills ' + killCount;
     syncWipeBtn();
+    syncRunChips();
   }
 
   function syncWipeBtn() {
@@ -1678,10 +1916,8 @@
 
   // ---------- Spawning ----------
   function difficultyScale() {
-    // Survival ramps harder; Timed stays closer to the classic mild curve.
-    if (playMode === 'survival') {
-      return 1 + timeAlive / 160 + Math.max(0, timeAlive - 300) / 220;
-    }
+    // Survival: 30% → +5%/min → max 200%. Timed: mild classic curve.
+    if (playMode === 'survival') return survivalDiffMul();
     return 1 + timeAlive / 420;
   }
 
@@ -1730,25 +1966,25 @@
     for (let i = 0; i < n; i++) spawnSlime(false);
   }
 
-  function spawnMonarchBoss() {
-    const ang = Math.random() * Math.PI * 2;
+  function spawnOneMonarch(angleOffset) {
+    const ang = (Math.random() * Math.PI * 2) + (angleOffset || 0);
     const dist = 280 + Math.random() * 90;
     let x = player.x + Math.cos(ang) * dist;
     let y = player.y + Math.sin(ang) * dist;
-    const spawnR = 72;
+    const spawnR = MONARCH_RADIUS;
     for (let tries = 0; tries < 10 && overlapsObstacle(x, y, spawnR); tries++) {
       const a2 = Math.random() * Math.PI * 2;
       const d2 = dist + tries * 30;
       x = player.x + Math.cos(a2) * d2;
       y = player.y + Math.sin(a2) * d2;
     }
-    // v1.0 rebuild: noticeably bigger Monarch + 10× HP vs prior formula.
+    // v1.0 ×10 HP formula; display/collision +50% in v1.1.
     const scale = difficultyScale();
     const hp = (2200 + timeAlive * 4.5) * 10 * (playMode === 'survival' ? scale : 1);
     const bossSpd = 26 + Math.random() * 4;
     enemies.push({
       x, y,
-      r: 72,
+      r: MONARCH_RADIUS,
       color: 'monarch',
       hp, maxHp: hp,
       baseSpeed: bossSpd,
@@ -1759,11 +1995,74 @@
       xp: 55,
       isKing: false,
       isBoss: true,
+      bossKind: 'monarch',
+      bossName: 'Monarch',
     });
-    bossAlive = true;
-    AudioFX.setBgmTrack('nightfall', true);
     addParticles(x, y, '#f5a0c0', 22);
     addParticles(x, y - 24, '#e8c84a', 12);
+  }
+
+  /** Spawn a wave of Monarchs (2 by default). Nightfall while any alive. */
+  function spawnMonarchBoss() {
+    for (let i = 0; i < MONARCH_COUNT; i++) {
+      spawnOneMonarch((i / MONARCH_COUNT) * Math.PI * 2);
+    }
+    syncBossBgm(true);
+  }
+
+  /** Survival Big King Slime by index 0..2. HP doubles each King. */
+  function spawnKingBoss(index) {
+    const def = KING_DEFS[index];
+    if (!def) return;
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 320 + Math.random() * 100;
+    let x = player.x + Math.cos(ang) * dist;
+    let y = player.y + Math.sin(ang) * dist;
+    const spawnR = def.r;
+    for (let tries = 0; tries < 12 && overlapsObstacle(x, y, spawnR); tries++) {
+      const a2 = Math.random() * Math.PI * 2;
+      const d2 = dist + tries * 36;
+      x = player.x + Math.cos(a2) * d2;
+      y = player.y + Math.sin(a2) * d2;
+    }
+    const scale = difficultyScale();
+    // First King clearly tougher than Monarch (×10 formula); each next King ×2 HP.
+    const base = (8000 + timeAlive * 6) * 12 * (playMode === 'survival' ? scale : 1);
+    const hp = base * Math.pow(2, index);
+    const bossSpd = 22 + index * 2 + Math.random() * 3;
+    enemies.push({
+      x, y,
+      r: def.r,
+      color: def.color,
+      hp, maxHp: hp,
+      baseSpeed: bossSpd,
+      speed: bossSpd * mobSpeedMul(),
+      damage: 40 + index * 8,
+      frame: 0,
+      frameT: 0,
+      xp: 120 + index * 40,
+      isKing: false,
+      isBoss: true,
+      bossKind: 'king',
+      kingId: def.id,
+      bossName: def.name,
+    });
+    addParticles(x, y, '#ffe8a0', 28);
+    addParticles(x, y - 30, '#e8c84a', 16);
+    syncBossBgm(true);
+  }
+
+  function tickBossSpawns() {
+    while (timeAlive >= nextMonarchAt) {
+      spawnMonarchBoss();
+      nextMonarchAt += MONARCH_INTERVAL;
+    }
+    if (playMode === 'survival') {
+      while (nextKingIndex < KING_SPAWN_TIMES.length && timeAlive >= KING_SPAWN_TIMES[nextKingIndex]) {
+        spawnKingBoss(nextKingIndex);
+        nextKingIndex++;
+      }
+    }
   }
 
   function spawnDmgNum(x, y, amount) {
@@ -1790,18 +2089,22 @@
     if (!best) return;
     const baseAng = Math.atan2(best.y - player.y, best.x - player.x);
     const count = Math.min(MULTISHOT_MAX, player.multishot);
+    const maxedMulti = count >= MULTISHOT_MAX;
     const spread = count > 1 ? 0.22 : 0;
+    const projSpd = maxedMulti ? 275 : 260;
     for (let i = 0; i < count; i++) {
       const off = count === 1 ? 0 : (i - (count - 1) / 2) * spread;
       const ang = baseAng + off;
       projectiles.push({
         x: player.x, y: player.y - 4,
-        vx: Math.cos(ang) * 260,
-        vy: Math.sin(ang) * 260,
+        vx: Math.cos(ang) * projSpd,
+        vy: Math.sin(ang) * projSpd,
         life: 1.4,
         damage: player.damage,
         pierce: player.pierce,
         hit: new Set(),
+        blueFire: maxedMulti,
+        r: maxedMulti ? 6 : 4,
       });
     }
     player.facing = Math.cos(baseAng) >= 0 ? 1 : -1;
@@ -1816,10 +2119,18 @@
     });
   }
 
-  /** XP gem tiers: blue (+10% normals), purple (kings), gold×3 (Monarch). */
+  /** XP gem tiers: blue (+10% normals), purple (elites), gold×3 (Monarch), gold×5 (Big King). */
   function dropGemsForEnemy(e) {
+    if (e.isBoss && e.bossKind === 'king') {
+      const each = 70 + (e.kingId === 'amber' ? 30 : (e.kingId === 'crown' ? 15 : 0));
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + Math.random() * 0.4;
+        dropGem(e.x + Math.cos(a) * 22, e.y + Math.sin(a) * 16, each, 'gold');
+      }
+      return;
+    }
     if (e.isBoss) {
-      // Triple gold — largest XP dump in the game (~50 each = 150 total).
+      // Triple gold — Monarch dump (~50 each = 150 total).
       const each = 50;
       for (let i = 0; i < 3; i++) {
         const a = (i / 3) * Math.PI * 2 + Math.random() * 0.4;
@@ -1849,15 +2160,18 @@
     }
   }
 
-  /** Omni stays out of the pool until Pulse Laser is maxed (L6). */
+  /** Omni stays out of the pool until Pulse Laser reaches L6 (can remain after). */
   function upgradeEligible(u) {
-    if (u.id === 'omni' && (player.laserLevel || 0) < LASER_MAX_LEVEL) return false;
+    if (u.id === 'omni' && (player.laserLevel || 0) < OMNI_UNLOCK_LASER) return false;
     return true;
   }
 
   function isUpgradeMaxed(u) {
     if (!player) return false;
     switch (u.id) {
+      case 'dmg': return (player.dmgLevel || 0) >= DMG_MAX;
+      case 'rate': return (player.rateLevel || 0) >= RATE_MAX;
+      case 'spd': return (player.spdLevel || 0) >= SPD_MAX;
       case 'multi': return player.multishot >= MULTISHOT_MAX;
       case 'pierce': return (player.pierce || 0) >= PIERCE_MAX;
       case 'laser': return (player.laserLevel || 0) >= LASER_MAX_LEVEL;
@@ -1865,7 +2179,7 @@
       case 'hp': return player.maxHp >= MAX_HP_CAP;
       case 'orbit': return (player.orbitOrbs || 0) >= ORBIT_MAX;
       case 'fairy': return (player.fairyLevel || 0) >= FAIRY_MAX;
-      default: return false; // uncapped: dmg/rate/spd/magnet/heal
+      default: return false; // uncapped: magnet/heal
     }
   }
 
@@ -1877,24 +2191,42 @@
     return arr;
   }
 
+  function buildChipHtml(label, cur, max, locked) {
+    if (locked) return '<span class="lvl-chip locked">' + label + ' 🔒</span>';
+    const maxed = max != null && cur >= max;
+    const txt = max != null ? (label + ' ' + cur + '/' + max) : (label + ' ' + cur);
+    return '<span class="lvl-chip' + (maxed ? ' maxed' : '') + (cur > 0 ? ' on' : '') + '">' + txt + '</span>';
+  }
+
+  function chipsHtml() {
+    if (!player) return '';
+    const omniUnlocked = (player.laserLevel || 0) >= OMNI_UNLOCK_LASER;
+    return (
+      buildChipHtml('Multi', player.multishot, MULTISHOT_MAX) +
+      buildChipHtml('Pierce', player.pierce || 0, PIERCE_MAX) +
+      buildChipHtml('Laser', player.laserLevel || 0, LASER_MAX_LEVEL) +
+      buildChipHtml('Orbit', player.orbitOrbs || 0, ORBIT_MAX) +
+      (omniUnlocked
+        ? buildChipHtml('Omni', player.omniLevel || 0, OMNI_MAX_LEVEL)
+        : buildChipHtml('Omni', 0, OMNI_MAX_LEVEL, true)) +
+      buildChipHtml('Fairy', player.fairyLevel || 0, FAIRY_MAX) +
+      buildChipHtml('Spark', player.dmgLevel || 0, DMG_MAX) +
+      buildChipHtml('Rapid', player.rateLevel || 0, RATE_MAX) +
+      buildChipHtml('Sneak', player.spdLevel || 0, SPD_MAX) +
+      buildChipHtml('HP', player.maxHp, MAX_HP_CAP)
+    );
+  }
+
   function syncLevelupStatus() {
     if (!el.levelupStatus || !player) return;
-    const chip = (label, cur, max) => {
-      const maxed = max != null && cur >= max;
-      const txt = max != null ? (label + ' ' + cur + '/' + max) : (label + ' ' + cur);
-      return '<span class="lvl-chip' + (maxed ? ' maxed' : '') + (cur > 0 ? ' on' : '') + '">' + txt + '</span>';
-    };
-    const omniUnlocked = (player.laserLevel || 0) >= LASER_MAX_LEVEL;
-    el.levelupStatus.innerHTML =
-      chip('Multi', player.multishot, MULTISHOT_MAX) +
-      chip('Pierce', player.pierce || 0, PIERCE_MAX) +
-      chip('Laser', player.laserLevel || 0, LASER_MAX_LEVEL) +
-      chip('Orbit', player.orbitOrbs || 0, ORBIT_MAX) +
-      (omniUnlocked
-        ? chip('Omni', player.omniLevel || 0, OMNI_MAX_LEVEL)
-        : '<span class="lvl-chip locked">Omni 🔒</span>') +
-      chip('Fairy', player.fairyLevel || 0, FAIRY_MAX) +
-      chip('HP', player.maxHp, MAX_HP_CAP);
+    el.levelupStatus.innerHTML = chipsHtml();
+  }
+
+  function syncRunChips() {
+    if (!el.runChips) return;
+    const show = (state === 'PLAYING' || state === 'PAUSED' || state === 'LEVELUP') && !!player;
+    el.runChips.classList.toggle('hidden', !show);
+    if (show) el.runChips.innerHTML = chipsHtml();
   }
 
   function offerLevelUp() {
@@ -2118,17 +2450,20 @@
     const ang = nearestEnemyAng();
     player.laserAng = ang;
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
-    const gold = (player.laserLevel || 0) >= LASER_MAX_LEVEL;
-    const len = 220 + player.laserLevel * 18 + (gold ? 30 : 0);
+    const lv = player.laserLevel || 0;
+    const gold = lv >= LASER_CADENCE_MAX; // gold glitter from L6+
+    const thickExtra = Math.max(0, lv - LASER_CADENCE_MAX); // L7–10 thicken a lot
+    const len = 220 + lv * 18 + (gold ? 30 : 0) + thickExtra * 12;
     const dmg = player.laserDamage;
+    const width = 5 + Math.min(LASER_CADENCE_MAX, lv) + (gold ? 2 : 0) + thickExtra * 4;
     lasers.push({
       x: player.x, y: player.y - 4,
       ang, len, life: gold ? 0.28 : 0.22, maxLife: gold ? 0.28 : 0.22,
-      damage: dmg, width: 5 + player.laserLevel + (gold ? 2 : 0),
+      damage: dmg, width,
       gold, omni: false,
     });
-    beamHitscan(player.x, player.y - 4, ang, len, dmg, gold ? 10 : 8, gold ? '#ffe8a0' : '#7cf0ff');
-    AudioFX.shoot();
+    beamHitscan(player.x, player.y - 4, ang, len, dmg, (gold ? 10 : 8) + thickExtra * 2, gold ? '#ffe8a0' : '#7cf0ff');
+    AudioFX.laser();
     addParticles(
       player.x + Math.cos(ang) * 20,
       player.y + Math.sin(ang) * 20,
@@ -2136,7 +2471,7 @@
       gold ? 10 : 6
     );
     if (gold) {
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 6 + thickExtra; i++) {
         const a = ang + (Math.random() - 0.5) * 0.5;
         const d = 30 + Math.random() * len * 0.6;
         addParticles(player.x + Math.cos(a) * d, player.y - 4 + Math.sin(a) * d, '#fff8d0', 2);
@@ -2380,9 +2715,22 @@
     updateFairies(dt);
     updateHpRegen(dt);
 
-    if (!bossSpawned && timeAlive >= BOSS_SPAWN_AT) {
-      bossSpawned = true;
-      spawnMonarchBoss();
+    tickBossSpawns();
+
+    // Sneaker Boost movement trails
+    if (player.moving && (player.spdLevel || 0) > 0) {
+      const lv = player.spdLevel;
+      moveTrails.push({
+        x: player.x, y: player.y + 4,
+        life: 0.22 + lv * 0.04,
+        maxLife: 0.22 + lv * 0.04,
+        r: 3 + lv * 0.45,
+      });
+      if (moveTrails.length > 40) moveTrails.shift();
+    }
+    for (let i = moveTrails.length - 1; i >= 0; i--) {
+      moveTrails[i].life -= dt;
+      if (moveTrails[i].life <= 0) moveTrails.splice(i, 1);
     }
 
     spawnTimer -= dt;
@@ -2417,11 +2765,12 @@
       for (const e of enemies) {
         if (p.hit.has(e)) continue;
         const dx = e.x - p.x, dy = e.y - p.y;
-        if (dx * dx + dy * dy < (e.r + 4) ** 2) {
+        const pr = p.r || 4;
+        if (dx * dx + dy * dy < (e.r + pr) ** 2) {
           e.hp -= p.damage;
           p.hit.add(e);
           spawnDmgNum(e.x, e.y - e.r, p.damage);
-          addParticles(p.x, p.y, '#ffe8a0', 4);
+          addParticles(p.x, p.y, p.blueFire ? '#7cf0ff' : '#ffe8a0', p.blueFire ? 6 : 4);
           AudioFX.hit();
           if (p.pierce <= 0) { projectiles.splice(i, 1); break; }
           p.pierce--;
@@ -2437,13 +2786,22 @@
       if (e.hp <= 0) {
         const wasBoss = !!e.isBoss;
         dropGemsForEnemy(e);
-        const palKey = e.color === 'king' ? 'mint' : (e.color === 'monarch' ? 'pink' : e.color);
-        addParticles(e.x, e.y, slimePalettes[palKey].mid, wasBoss ? 22 : 10);
+        let palKey = e.color;
+        if (e.color === 'king') palKey = 'mint';
+        else if (e.color === 'monarch') palKey = 'pink';
+        else if (e.color === 'kingFrost') palKey = 'mint';
+        else if (e.color === 'kingCrown') palKey = 'purple';
+        else if (e.color === 'kingAmber') palKey = 'yellow';
+        const mid = (slimePalettes[palKey] || slimePalettes.mint).mid;
+        addParticles(e.x, e.y, mid, wasBoss ? 22 : 10);
         if (wasBoss) {
           addParticles(e.x, e.y - 16, '#e8c84a', 14);
           addParticles(e.x, e.y, '#7dcea0', 12);
-          bossAlive = false;
-          AudioFX.setBgmTrack('calm', true);
+          enemies.splice(i, 1);
+          killCount++;
+          AudioFX.kill();
+          syncBossBgm(true);
+          continue;
         }
         enemies.splice(i, 1);
         killCount++;
@@ -2650,20 +3008,33 @@
     if (player && player.orbitOrbs > 0) {
       const n = player.orbitOrbs;
       const rad = player.orbitRadius || 44;
+      const orbitMaxed = n >= ORBIT_MAX;
+      const pulse = orbitMaxed ? (0.55 + 0.45 * Math.sin(performance.now() * 0.008)) : 0;
       for (let i = 0; i < n; i++) {
         const a = (player.orbitAngle || 0) + (i / n) * Math.PI * 2;
         const wx = player.x + Math.cos(a) * rad;
         const wy = player.y + Math.sin(a) * rad;
         const s = worldToScreen(wx, wy);
+        if (orbitMaxed) {
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(200, 160, 255, ${0.18 + pulse * 0.28})`;
+          ctx.arc(s.x, s.y, 11 + pulse * 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = `rgba(230, 200, 255, ${0.35 + pulse * 0.45})`;
+          ctx.lineWidth = 1.5 + pulse;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, 8 + pulse * 2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
         ctx.beginPath();
-        ctx.fillStyle = '#c4b0e8';
-        ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = orbitMaxed ? '#e8d0ff' : '#c4b0e8';
+        ctx.arc(s.x, s.y, orbitMaxed ? 5.5 : 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(s.x - 1, s.y - 1, 2, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(160,120,220,0.45)';
+        ctx.strokeStyle = orbitMaxed ? `rgba(210,170,255,${0.55 + pulse * 0.35})` : 'rgba(160,120,220,0.45)';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(s.x, s.y, 7, 0, Math.PI * 2);
@@ -2673,28 +3044,41 @@
     if (player && player.fairyLevel > 0) {
       const n = player.fairyCount || 1;
       const rad = player.fairyRadius || 52;
+      const goldAura = (player.fairyLevel || 0) >= 6;
       for (let i = 0; i < n; i++) {
         const a = (player.fairyAngle || 0) + (i / n) * Math.PI * 2;
         const wx = player.x + Math.cos(a) * rad;
         const wy = player.y + Math.sin(a) * rad;
         const s = worldToScreen(wx, wy);
-        // soft glow under fairy
+        // soft glow under fairy — gold aura at L6–8
         ctx.beginPath();
-        ctx.fillStyle = 'rgba(255, 180, 220, 0.35)';
-        ctx.arc(s.x, s.y - 2, 8, 0, Math.PI * 2);
-        ctx.fill();
+        if (goldAura) {
+          const glowPulse = 0.4 + 0.25 * Math.sin(performance.now() * 0.006 + i);
+          ctx.fillStyle = `rgba(255, 220, 100, ${glowPulse})`;
+          ctx.arc(s.x, s.y - 2, 11, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(255, 248, 180, 0.35)';
+          ctx.arc(s.x, s.y - 2, 7, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = 'rgba(255, 180, 220, 0.35)';
+          ctx.arc(s.x, s.y - 2, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
         blit(ctx, fairySprite, s.x - 6, s.y - 10);
       }
     }
     if (player && player.laserTelegraph > 0) {
       const ang = player.laserAng || 0;
-      const gold = (player.laserLevel || 0) >= LASER_MAX_LEVEL;
-      const len = 200;
+      const gold = (player.laserLevel || 0) >= LASER_CADENCE_MAX;
+      const thickExtra = Math.max(0, (player.laserLevel || 0) - LASER_CADENCE_MAX);
+      const len = 200 + thickExtra * 10;
       const s0 = worldToScreen(player.x, player.y - 4);
       const s1 = worldToScreen(player.x + Math.cos(ang) * len, player.y - 4 + Math.sin(ang) * len);
       ctx.save();
       ctx.strokeStyle = gold ? 'rgba(255, 220, 100, 0.65)' : 'rgba(255, 120, 160, 0.55)';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 + thickExtra * 0.8;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.moveTo(s0.x, s0.y);
@@ -2759,10 +3143,27 @@
     }
   }
 
+  function drawMoveTrails() {
+    if (!moveTrails.length) return;
+    for (const t of moveTrails) {
+      const a = Math.max(0, t.life / t.maxLife);
+      const s = worldToScreen(t.x, t.y);
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(247, 160, 192, ${0.15 + a * 0.45})`;
+      ctx.arc(s.x, s.y, t.r * a, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255, 232, 240, ${0.08 + a * 0.28})`;
+      ctx.arc(s.x, s.y, Math.max(1, t.r * a * 0.45), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   function drawProjectiles() {
     for (const p of projectiles) {
       const s = worldToScreen(p.x, p.y);
       if (p.fairy) blit(ctx, fairyBoltSprite, s.x - 2, s.y - 2);
+      else if (p.blueFire) blit(ctx, projSpriteBlue, s.x - 4, s.y - 4);
       else blit(ctx, projSprite, s.x - 3, s.y - 3);
     }
   }
@@ -2838,6 +3239,7 @@
         drawMenuBackdrop();
       } else {
         drawNightGrass();
+        drawMoveTrails();
         drawGems();
         drawSortedWorld();
         drawOrbitAndLaser();
