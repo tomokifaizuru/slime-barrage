@@ -30,10 +30,21 @@
   const VIEW_H_MIN = 300;
   const VIEW_H_MAX = 1400;
   // World→screen zoom. Landscape FOV baked into BASE_W (VIEW_ZOOM=1).
-  // Portrait zooms in for mobile survivor feel: world width ≈ BASE_W/4.0 ≈ 150
-  // so the 20px hero reads ~13% of screen width (not a speck on a huge meadow).
-  const VIEW_ZOOM_PORTRAIT = 4.0;
+  // Portrait zoom is user-tunable (Far 1.0 … Close 4.0); default ~2.2 for a
+  // comfortable mobile action feel (not maxed at 4.0).
+  const VIEW_ZOOM_MIN = 1.0;
+  const VIEW_ZOOM_MAX = 4.0;
+  const VIEW_ZOOM_DEFAULT = 2.2;
   const VIEW_ZOOM_LANDSCAPE = 1;
+  function loadPortraitZoom() {
+    let z = VIEW_ZOOM_DEFAULT;
+    try {
+      const raw = parseFloat(localStorage.getItem('slimeBarrageZoom'));
+      if (isFinite(raw)) z = raw;
+    } catch (_) {}
+    return Math.max(VIEW_ZOOM_MIN, Math.min(VIEW_ZOOM_MAX, z));
+  }
+  let VIEW_ZOOM_PORTRAIT = loadPortraitZoom();
   let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
   // Extra buffer pixels for retina / CSS downscale (pixel art stays nearest-neighbor).
   let BUFFER_SCALE = 1;
@@ -115,6 +126,10 @@
     sfxVolPause: document.getElementById('sfxVolPause'),
     musicVolPauseVal: document.getElementById('musicVolPauseVal'),
     sfxVolPauseVal: document.getElementById('sfxVolPauseVal'),
+    zoomSlider: document.getElementById('zoomSlider'),
+    zoomVal: document.getElementById('zoomVal'),
+    zoomSliderPause: document.getElementById('zoomSliderPause'),
+    zoomValPause: document.getElementById('zoomValPause'),
     hpFill: document.getElementById('hpFill'),
     hpText: document.getElementById('hpText'),
     xpFill: document.getElementById('xpFill'),
@@ -178,7 +193,7 @@
     const vw = window.innerWidth || document.documentElement.clientWidth || BASE_W;
     const vh = window.innerHeight || document.documentElement.clientHeight || BASE_H;
     const isPortrait = vh > vw;
-    // Landscape FOV baked into BASE_W (VIEW_ZOOM=1); portrait tight FOV via VIEW_ZOOM_PORTRAIT.
+    // Landscape FOV baked into BASE_W (VIEW_ZOOM=1); portrait uses user Zoom slider (VIEW_ZOOM_PORTRAIT).
     // Does NOT enlarge HUD/UI chrome (CSS --ui-scale stays independent).
     VIEW_ZOOM = isPortrait ? VIEW_ZOOM_PORTRAIT : VIEW_ZOOM_LANDSCAPE;
 
@@ -895,6 +910,42 @@
   bindVolSlider(el.sfxVol, AudioFX.setSfxVol);
   bindVolSlider(el.musicVolPause, AudioFX.setMusicVol);
   bindVolSlider(el.sfxVolPause, AudioFX.setSfxVol);
+
+  function formatZoom(z) {
+    return (Math.round(z * 10) / 10).toFixed(1);
+  }
+  function syncZoomUI() {
+    const z = VIEW_ZOOM_PORTRAIT;
+    const pairs = [
+      [el.zoomSlider, el.zoomVal],
+      [el.zoomSliderPause, el.zoomValPause],
+    ];
+    for (const [input, label] of pairs) {
+      if (!input) continue;
+      if (document.activeElement !== input) input.value = formatZoom(z);
+      if (label) label.textContent = formatZoom(z);
+    }
+  }
+  function setPortraitZoom(v) {
+    let z = parseFloat(v);
+    if (!isFinite(z)) z = VIEW_ZOOM_DEFAULT;
+    z = Math.max(VIEW_ZOOM_MIN, Math.min(VIEW_ZOOM_MAX, z));
+    // Snap to 0.1 for stable slider/storage values
+    z = Math.round(z * 10) / 10;
+    VIEW_ZOOM_PORTRAIT = z;
+    try { localStorage.setItem('slimeBarrageZoom', String(z)); } catch (_) {}
+    syncZoomUI();
+    fitCanvas(); // live-apply in portrait; landscape stays VIEW_ZOOM_LANDSCAPE
+  }
+  function bindZoomSlider(input) {
+    if (!input) return;
+    const onChange = () => setPortraitZoom(input.value);
+    input.addEventListener('input', onChange);
+    input.addEventListener('change', onChange);
+  }
+  syncZoomUI();
+  bindZoomSlider(el.zoomSlider);
+  bindZoomSlider(el.zoomSliderPause);
 
   // ---------- Input ----------
   const keys = Object.create(null);

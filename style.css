@@ -293,6 +293,19 @@ html, body {
   accent-color: #c4b0e8;
   cursor: pointer;
 }
+.zoom-row label {
+  flex: 0 0 3.6em;
+}
+.zoom-edge {
+  flex: 0 0 auto;
+  font-size: 0.78em;
+  font-weight: 600;
+  color: #8890a8;
+  opacity: 0.9;
+}
+.zoom-row .vol-val {
+  flex: 0 0 2.4em;
+}
 .vol-val {
   flex: 0 0 2.2em;
   text-align: right;

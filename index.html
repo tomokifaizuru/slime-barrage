@@ -6,10 +6,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Slime Barrage" />
   <title>Slime Barrage v1.14</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1.14" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=1.14" />
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=1.14" />
-  <link rel="stylesheet" href="style.css?v=1.14" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1.14a" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=1.14a" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=1.14a" />
+  <link rel="stylesheet" href="style.css?v=1.14a" />
 </head>
 <body>
   <div id="stage">
@@ -70,6 +70,13 @@
               <input type="range" id="sfxVol" min="0" max="100" value="100" aria-label="SFX volume" />
               <span id="sfxVolVal" class="vol-val">100</span>
             </div>
+            <div class="vol-row zoom-row">
+              <label for="zoomSlider">Zoom</label>
+              <span class="zoom-edge" aria-hidden="true">Far</span>
+              <input type="range" id="zoomSlider" min="1" max="4" step="0.1" value="2.2" aria-label="Portrait camera zoom" />
+              <span class="zoom-edge" aria-hidden="true">Close</span>
+              <span id="zoomVal" class="vol-val">2.2</span>
+            </div>
             <button type="button" id="muteBtnMenu" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
           </div>
           <button type="button" id="ranksBtn" class="btn ranks-btn">RANKINGS</button>
@@ -92,6 +99,13 @@
               <label for="sfxVolPause">SFX</label>
               <input type="range" id="sfxVolPause" min="0" max="100" value="100" aria-label="SFX volume" />
               <span id="sfxVolPauseVal" class="vol-val">100</span>
+            </div>
+            <div class="vol-row zoom-row">
+              <label for="zoomSliderPause">Zoom</label>
+              <span class="zoom-edge" aria-hidden="true">Far</span>
+              <input type="range" id="zoomSliderPause" min="1" max="4" step="0.1" value="2.2" aria-label="Portrait camera zoom" />
+              <span class="zoom-edge" aria-hidden="true">Close</span>
+              <span id="zoomValPause" class="vol-val">2.2</span>
             </div>
           </div>
           <button type="button" id="resumeBtn" class="btn primary">RESUME</button>
@@ -151,7 +165,7 @@
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js?v=1.14"></script>
+  <script src="game.js?v=1.14a"></script>
 
 </body>
 </html>

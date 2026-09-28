@@ -4,7 +4,7 @@ A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoo
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.14** — portrait camera much closer (`VIEW_ZOOM_PORTRAIT=4.0`, world width ≈150 on `BASE_W=600`) so the player reads ~13% of screen width; landscape and HUD/`--ui-scale` unchanged. Cache-bust `?v=1.14`.
+> **v1.14** — **Zoom** slider (Menu + Pause): Far **1.0** … Close **4.0**, default **2.2**, saved as `slimeBarrageZoom`; live-applies portrait `VIEW_ZOOM` only (landscape stays 1). Cache-bust `?v=1.14a` (VERSION display still v1.14).
 
 ## How to play
 
@@ -29,6 +29,7 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 | **M** or 🔊 button | Mute / unmute (saved) |
 | **Esc / P** or ⏸ button | Pause / resume |
 | Music / SFX sliders | Separate volumes (saved) |
+| **Zoom** slider (Menu / Pause) | Portrait camera Far↔Close (saved) |
 | On-screen stick (touch) | Move on mobile (floating) |
 
 ### Modes
@@ -73,7 +74,7 @@ Scoring:
 - Each minute: normal + elite mobs gain **+1% speed and +1% damage** (stacking, separate from difficulty).
 - Survival **Big Kings** every **4 minutes from 4:00** (Frostmint → Crown Jelly → Amber, then next sets). Later sets **+1/3 HP & speed** vs prior set (×4/3 per set). **Defeating Amber = WIN**.
 - Elite purple slime first eligible after **60s**.
-- Portrait camera tightened: `VIEW_ZOOM_PORTRAIT=4.0` (was 2.4) → visible world width ≈150 (was ~250) so the 20px hero is ~13% of screen width; landscape stays `VIEW_ZOOM_LANDSCAPE=1`, width-fit, `imageSmoothingEnabled=false`, HUD/`--ui-scale` unchanged.
+- **Zoom** slider (Menu + Pause): Far **1.0** … Close **4.0**, default **2.2** (`localStorage` `slimeBarrageZoom`); live-applies portrait `VIEW_ZOOM` only; landscape stays `VIEW_ZOOM_LANDSCAPE=1`. HUD/`--ui-scale` unchanged. Cache `?v=1.14a`.
 - Survival Amber kill shows **Continue?** (endless) or **End run** (claim victory).
 - Pink-Mint Monarch size **−20%**; **off-screen location arrow** when Monarch is outside the view.
 - XP gem totals halved (1 / 2 / 13 / 75 / 175 / 212 / 250).
