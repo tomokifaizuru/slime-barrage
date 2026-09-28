@@ -1,10 +1,10 @@
-# Slime Barrage v1.11
+# Slime Barrage v1.12
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **defeat the Amber Colossus King** (Survival) or **win Timed at 6:00**.
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.11** — portrait mobile gameplay FOV widened ~30% (`VIEW_ZOOM_PORTRAIT=0.769`); landscape and all other gameplay/balance/UI unchanged. Cache-bust `?v=1.11`.
+> **v1.12** — portrait mobile gameplay is zoomed in 30% (`VIEW_ZOOM_PORTRAIT=1.3`); landscape and all other gameplay/balance/UI unchanged. Cache-bust `?v=1.12`.
 
 ## How to play
 
@@ -67,13 +67,13 @@ Scoring:
 - **Survival:** `time×5 + kills×12 + lv×20`
 - **Timed:** `kills×10 + time×2 + lv×25`
 
-## What’s new in v1.11
+## What’s new in v1.12
 
 - Survival difficulty **68% → +2.5%/min → 200%**; spawn-rate scale shares that curve (starts **68%**).
 - Each minute: normal + elite mobs gain **+1% speed and +1% damage** (stacking, separate from difficulty).
 - Survival **Big Kings** every **4 minutes from 4:00** (Frostmint → Crown Jelly → Amber, then next sets). Later sets **+1/3 HP & speed** vs prior set (×4/3 per set). **Defeating Amber = WIN**.
 - Elite purple slime first eligible after **60s**.
-- Portrait gameplay FOV widened ~30% with `VIEW_ZOOM_PORTRAIT=0.769`; landscape remains `VIEW_ZOOM_LANDSCAPE=1` with optional 2× buffer on retina.
+- Portrait gameplay zoomed in 30% with `VIEW_ZOOM_PORTRAIT=1.3`; landscape remains `VIEW_ZOOM_LANDSCAPE=1` with optional 2× buffer on retina.
 - Survival Amber kill shows **Continue?** (endless) or **End run** (claim victory).
 - Pink-Mint Monarch size **−20%**; **off-screen location arrow** when Monarch is outside the view.
 - XP gem totals halved (1 / 2 / 13 / 75 / 175 / 212 / 250).
