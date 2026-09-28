@@ -6,15 +6,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Slime Barrage" />
   <title>Slime Barrage v1.1</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v11e" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v11e" />
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v11e" />
-  <link rel="stylesheet" href="style.css?v=v11e" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v11f" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v11f" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v11f" />
+  <link rel="stylesheet" href="style.css?v=v11f" />
 </head>
 <body>
   <div id="stage">
     <div id="gameBox">
-      <canvas id="game" width="480" height="270"></canvas>
+      <canvas id="game" width="600" height="338"></canvas>
       <div id="ui" aria-live="polite">
         <div id="hud" class="hidden">
           <div class="hud-left">
@@ -58,7 +58,7 @@
             <button type="button" id="playSurvivalBtn" class="btn mode-btn">SURVIVAL</button>
             <button type="button" id="playTimedBtn" class="btn primary mode-btn">TIMED 6:00</button>
           </div>
-          <p class="mode-hint"><span class="mode-tag">Survival</span> defeat Amber King @12:00 to win · <span class="mode-tag">Timed</span> win at 6:00</p>
+          <p class="mode-hint"><span class="mode-tag">Survival</span> defeat Amber for Continue? / claim win · <span class="mode-tag">Timed</span> win at 6:00</p>
           <div class="menu-audio">
             <div class="vol-row">
               <label for="musicVol">Music</label>
@@ -74,7 +74,7 @@
           </div>
           <button type="button" id="ranksBtn" class="btn ranks-btn">RANKINGS</button>
           <p class="hint">v1.1 redo · WASD / Arrows · auto-fires · Wipe (starts on CD)</p>
-          <p class="hint">Kings 5/10/15 · Barrier Shield · Multi/Spark/Rapid/Sneak 8 · Orbit 10 · Laser 10 · Fairy 8</p>
+          <p class="hint">Kings every 4:00 · Barrier Shield · Multi/Spark/Rapid 8 · Sneak 6 · Orbit 10 · Laser 10 · Fairy 8</p>
           <p class="hint score-hint">Ranks: GLOBAL fresh boards · Survival (time×5+kills×12+lv×20) · Timed (kills×10+time×2+lv×25)</p>
         </div>
 
@@ -102,6 +102,14 @@
           <p class="panel-sub">Pick an upgrade (1 / 2 / 3 or tap)</p>
           <div id="levelupStatus" class="levelup-status" aria-live="polite"></div>
           <div id="cards" class="cards"></div>
+        </div>
+
+        <div id="amberContinue" class="panel dim hidden">
+          <h2 class="panel-title win">AMBER DEFEATED!</h2>
+          <p class="panel-sub">Continue the endless run, or claim victory now.</p>
+          <p class="panel-sub amber-continue-note">Kings keep spawning · ranks submit only when you claim or die</p>
+          <button type="button" id="amberContinueBtn" class="btn primary">Continue?</button>
+          <button type="button" id="amberEndBtn" class="btn">End run</button>
         </div>
 
         <div id="end" class="panel dim hidden">
@@ -142,7 +150,7 @@
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js?v=v11e"></script>
+  <script src="game.js?v=v11f"></script>
 
 </body>
 </html>

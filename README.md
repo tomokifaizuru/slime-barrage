@@ -4,7 +4,7 @@ A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoo
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.1** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival: starts **68%**, ramps **+2.5%/min**, caps **200%**; kings every **4 min from 4:00**; camera zoomed out ~20%; XP table hardcoded; Sneaker max **6**; HUD skill icons; gold sparks only. Cache-bust `?v=v11e`.
+> **v1.1** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival: starts **68%**, ramps **+2.5%/min**, caps **200%**; kings every **4 min from 4:00**; camera zoomed out ~20%; XP table hardcoded; Sneaker max **6**; HUD skill icons; gold sparks only. Cache-bust `?v=v11f`.
 
 ## How to play
 
@@ -73,7 +73,8 @@ Scoring:
 - Each minute: normal + elite mobs gain **+1% speed and +1% damage** (stacking, separate from difficulty).
 - Survival **Big Kings** every **4 minutes from 4:00** (Frostmint → Crown Jelly → Amber, then next sets). Later sets **+1/3 HP & speed** vs prior set (×4/3 per set). **Defeating Amber = WIN**.
 - Elite purple slime first eligible after **60s**.
-- Camera zoomed **out ~20%** (portrait/landscape ×0.8).
+- Camera zoomed-out FOV baked into higher-res canvas (`BASE_W=600`, `VIEW_ZOOM=1`) + optional 2× buffer on retina.
+- Survival Amber kill shows **Continue?** (endless) or **End run** (claim victory).
 - Pink-Mint Monarch size **−20%**; **off-screen location arrow** when Monarch is outside the view.
 - XP gem totals hardcoded (2 / 3 / 26 / 150 / 350 / 425 / 500).
 - Sneaker Boost max **6**; Multishot stays gold/yellow sparks (no blue fireball).

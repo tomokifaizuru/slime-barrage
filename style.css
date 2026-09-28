@@ -23,8 +23,8 @@ html, body {
 /* Sized by JS to match view aspect (portrait full-bleed). Overflow clips rare tiny-cover. */
 #gameBox {
   position: relative;
-  width: 480px;
-  height: 270px;
+  width: 600px;
+  height: 338px;
   flex-shrink: 0;
   overflow: hidden;
   box-shadow: 0 0 40px rgba(120, 80, 200, 0.25);
@@ -212,8 +212,15 @@ html, body {
   color: #ffe8a0;
   text-shadow: 0 0.06em 0 #6a5820;
 }
-#endTitle.win { color: #7dcea0; text-shadow: 0 0.06em 0 #2a6040; }
+#endTitle.win, .panel-title.win { color: #7dcea0; text-shadow: 0 0.06em 0 #2a6040; }
 #endTitle.lose { color: #f7a0c0; text-shadow: 0 0.06em 0 #8a4060; }
+.amber-continue-note {
+  color: #ffe8a0;
+  font-size: 0.85em;
+  opacity: 0.9;
+  max-width: 28em;
+}
+#amberContinue .btn { margin-top: 0.15em; }
 .panel-sub {
   font-size: 1em;
   color: #a0b0c8;
@@ -559,7 +566,14 @@ html, body {
 .rank-status.offline, .rank-status.error { color: #e8a070; }
 .rank-status.syncing { color: #c4b0e8; }
 .end-stats .win-note { color: #ffe8a0; font-weight: 800; margin-bottom: 0.35em; }
-#ranks .panel-sub {
+#ranks .amber-continue-note {
+  color: #ffe8a0;
+  font-size: 0.85em;
+  opacity: 0.9;
+  max-width: 28em;
+}
+#amberContinue .btn { margin-top: 0.15em; }
+.panel-sub {
   font-size: 0.9em;
   color: #a0b0c8;
   margin-bottom: 0.35em;

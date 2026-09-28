@@ -4,19 +4,21 @@
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
  * Mid-run Pink-Mint Monarch×2 every 3m; Survival Big Kings every 4m from 4:00.
- * Portrait/landscape world zoom (~0.8×), infinite meadow, Survival + Timed.
+ * Zoomed-out FOV baked into higher-res canvas (VIEW_ZOOM=1), infinite meadow, Survival + Timed.
  * Orbit Guard (10), Pulse Laser L1–10, Omni (after Laser 6), Fairy (5 / L8).
  * Wipe skill, Barrier Shield, XP gem tiers, HP regen, HUD run chips + icons.
  * Multishot/Sharp/Rapid max 8; Sneaker 6; Pierce 6; HP 200; Survival 68%→200%.
- * Survival win on Amber Colossus; global rankings (fresh gameIds 18/19).
+ * Survival Amber → Continue?/claim win; global rankings (fresh gameIds 18/19).
  */
 (() => {
   'use strict';
 
   // ---------- Config ----------
-  // Mutable view size: landscape stays classic 480×270; portrait grows taller
-  // so width-fit scale fills the phone with no letterbars / no side crop.
-  const BASE_W = 480, BASE_H = 270;
+  // Mutable view size: higher-res buffer (was 480×270) with VIEW_ZOOM≈1 so
+  // the zoomed-out meadow FOV is default AND sprites stay crisp (no soft shrink).
+  // Portrait grows taller for width-fit (no letterbars / no side crop).
+  // Prior FOV: portrait ~480/1.24≈387, landscape ~480/0.84≈571 — we meet/exceed that.
+  const BASE_W = 600, BASE_H = 338; // 16:9; was 480×270
   let W = BASE_W, H = BASE_H;
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
@@ -25,13 +27,15 @@
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
-  const VIEW_H_MIN = 270;
-  const VIEW_H_MAX = 1200;
-  // World→screen zoom (mutable; recomputed on resize/orientation). UI stays CSS-sized.
-  // Zoomed out ~20% vs prior (effective ×0.8) so more meadow is visible.
-  const VIEW_ZOOM_PORTRAIT = 1.24; // was 1.55 × 0.8
-  const VIEW_ZOOM_LANDSCAPE = 0.84; // was 1.05 × 0.8
+  const VIEW_H_MIN = 300;
+  const VIEW_H_MAX = 1400;
+  // World→screen zoom. Baked FOV into BASE_W so default is zoomed-out + crisp.
+  // Kept near 1.0 (identity) — soft/chunky look came from zoom≠1 on a small buffer.
+  const VIEW_ZOOM_PORTRAIT = 1;
+  const VIEW_ZOOM_LANDSCAPE = 1;
   let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
+  // Extra buffer pixels for retina / CSS downscale (pixel art stays nearest-neighbor).
+  let BUFFER_SCALE = 1;
   const MULTISHOT_MAX = 8;
   const PIERCE_MAX = 6;
   const LASER_CADENCE_MAX = 6; // L1–6 cadence 2.0→0.75; L7–10 keep 0.75 + thicken
@@ -52,7 +56,7 @@
   const SURVIVAL_DIFF_START = 0.68;
   const SURVIVAL_DIFF_RAMP = 0.025;
   const SURVIVAL_DIFF_MAX = 2.0;
-  // Big King Slimes (Survival): every 4 min from 4:00. Amber kill = win.
+  // Big King Slimes (Survival): every 4 min from 4:00. Amber → Continue?/claim win.
   // Cycle Frostmint → Crown Jelly → Amber; later sets ×4/3 HP & speed.
   const KING_SPAWN_START = 240; // 4:00
   const KING_SPAWN_INTERVAL = 240; // every 4 minutes
@@ -90,12 +94,15 @@
     hud: document.getElementById('hud'),
     pause: document.getElementById('pause'),
     levelup: document.getElementById('levelup'),
+    amberContinue: document.getElementById('amberContinue'),
     end: document.getElementById('end'),
     playSurvivalBtn: document.getElementById('playSurvivalBtn'),
     playTimedBtn: document.getElementById('playTimedBtn'),
     menuBtn: document.getElementById('menuBtn'),
     resumeBtn: document.getElementById('resumeBtn'),
     pauseMenuBtn: document.getElementById('pauseMenuBtn'),
+    amberContinueBtn: document.getElementById('amberContinueBtn'),
+    amberEndBtn: document.getElementById('amberEndBtn'),
     pauseBtn: document.getElementById('pauseBtn'),
     muteBtnMenu: document.getElementById('muteBtnMenu'),
     muteBtnHud: document.getElementById('muteBtnHud'),
@@ -136,9 +143,10 @@
   };
 
   // Resize internal view to match viewport aspect, then CSS-size the box to fill.
-  // Portrait: keep W=480, grow H so width-fit fills the phone (no letterbars,
-  // no side crop). Landscape: classic 480×270 for stability.
-  // --ui-scale stays the v0.5 comfortable clamp (not raw cover zoom).
+  // Portrait: keep W=BASE_W, grow H so width-fit fills the phone (no letterbars,
+  // no side crop). Landscape: BASE_W×BASE_H for stability.
+  // Canvas buffer = logical × BUFFER_SCALE (dpr) so CSS downscale stays crisp.
+  // --ui-scale stays the comfortable clamp (not raw cover zoom).
   function resizeView(vw, vh) {
     const isPortrait = vh > vw;
     let nextW, nextH;
@@ -150,13 +158,18 @@
       nextW = BASE_W;
       nextH = BASE_H;
     }
-    if (nextW === W && nextH === H && canvas.width === W && canvas.height === H) {
+    const dpr = window.devicePixelRatio || 1;
+    const nextBuf = dpr >= 1.5 ? 2 : 1;
+    if (nextW === W && nextH === H && BUFFER_SCALE === nextBuf &&
+        canvas.width === Math.round(W * BUFFER_SCALE) &&
+        canvas.height === Math.round(H * BUFFER_SCALE)) {
       return;
     }
     W = nextW;
     H = nextH;
-    canvas.width = W;
-    canvas.height = H;
+    BUFFER_SCALE = nextBuf;
+    canvas.width = Math.round(W * BUFFER_SCALE);
+    canvas.height = Math.round(H * BUFFER_SCALE);
     ctx.imageSmoothingEnabled = false;
   }
 
@@ -164,7 +177,7 @@
     const vw = window.innerWidth || document.documentElement.clientWidth || BASE_W;
     const vh = window.innerHeight || document.documentElement.clientHeight || BASE_H;
     const isPortrait = vh > vw;
-    // Portrait: meadow feels larger (~1.55). Landscape: near-normal (~1.05).
+    // Zoomed-out FOV is baked into BASE_W with VIEW_ZOOM≈1 (crisp sprites).
     // Does NOT enlarge HUD/UI chrome (CSS --ui-scale stays independent).
     VIEW_ZOOM = isPortrait ? VIEW_ZOOM_PORTRAIT : VIEW_ZOOM_LANDSCAPE;
 
@@ -903,6 +916,10 @@
       if (e.code === 'Digit2' || e.code === 'Numpad2') pickUpgrade(1);
       if (e.code === 'Digit3' || e.code === 'Numpad3') pickUpgrade(2);
     }
+    if (state === 'AMBER_CONTINUE') {
+      if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); continueAfterAmber(); return; }
+      if (e.code === 'Escape') { e.preventDefault(); claimAmberVictory(); return; }
+    }
     if ((e.code === 'KeyQ' || e.code === 'KeyF') && state === 'PLAYING') {
       activateWipe();
       return;
@@ -1035,6 +1052,12 @@
     AudioFX.setBgmDucked(false);
     goMenu();
   });
+  if (el.amberContinueBtn) {
+    el.amberContinueBtn.addEventListener('click', () => continueAfterAmber());
+  }
+  if (el.amberEndBtn) {
+    el.amberEndBtn.addEventListener('click', () => claimAmberVictory());
+  }
 
   if (el.wipeBtn) {
     el.wipeBtn.addEventListener('click', (ev) => {
@@ -1760,12 +1783,13 @@
 
   function showOnly(panel) {
     el.menu.classList.toggle('hidden', panel !== 'menu');
-    el.hud.classList.toggle('hidden', panel !== 'hud' && panel !== 'levelup' && panel !== 'end' && panel !== 'pause');
-    // Keep HUD visible under levelup/end/pause for context, but hide on menu
-    if (panel === 'levelup' || panel === 'end' || panel === 'pause') el.hud.classList.remove('hidden');
+    el.hud.classList.toggle('hidden', panel !== 'hud' && panel !== 'levelup' && panel !== 'end' && panel !== 'pause' && panel !== 'amberContinue');
+    // Keep HUD visible under levelup/end/pause/continue for context, but hide on menu
+    if (panel === 'levelup' || panel === 'end' || panel === 'pause' || panel === 'amberContinue') el.hud.classList.remove('hidden');
     if (panel === 'menu' || panel === 'ranks') el.hud.classList.add('hidden');
     el.pause.classList.toggle('hidden', panel !== 'pause');
     el.levelup.classList.toggle('hidden', panel !== 'levelup');
+    if (el.amberContinue) el.amberContinue.classList.toggle('hidden', panel !== 'amberContinue');
     el.end.classList.toggle('hidden', panel !== 'end');
     if (el.ranks) el.ranks.classList.toggle('hidden', panel !== 'ranks');
   }
@@ -2307,7 +2331,7 @@
 
   function syncRunChips() {
     if (!el.runChips) return;
-    const show = (state === 'PLAYING' || state === 'PAUSED' || state === 'LEVELUP') && !!player;
+    const show = (state === 'PLAYING' || state === 'PAUSED' || state === 'LEVELUP' || state === 'AMBER_CONTINUE') && !!player;
     el.runChips.classList.toggle('hidden', !show);
     if (show) el.runChips.innerHTML = chipsHtml();
   }
@@ -2616,10 +2640,39 @@
     syncOnlineRanks();
   }
 
+  function showAmberContinue() {
+    if (state !== 'PLAYING') return;
+    state = 'AMBER_CONTINUE';
+    AudioFX.setBgmDucked(true);
+    AudioFX.win();
+    showOnly('amberContinue');
+    syncHud();
+  }
+
+  function continueAfterAmber() {
+    if (state !== 'AMBER_CONTINUE') return;
+    AudioFX.unlock();
+    AudioFX.click();
+    state = 'PLAYING';
+    AudioFX.setBgmDucked(false);
+    syncBossBgm(true);
+    showOnly('hud');
+    syncHud();
+  }
+
+  function claimAmberVictory() {
+    if (state !== 'AMBER_CONTINUE') return;
+    AudioFX.unlock();
+    AudioFX.click();
+    showEnd(true, 'amber');
+  }
+
   function showEnd(won, reason) {
     state = won ? 'WIN' : 'GAMEOVER';
     AudioFX.stopBgm(true);
-    if (won) AudioFX.win(); else AudioFX.death();
+    // Amber win cue already played when Continue? prompt opened.
+    if (won) { if (reason !== 'amber') AudioFX.win(); }
+    else AudioFX.death();
     const modeLabel = playMode === 'survival' ? 'Survival' : 'Timed';
     if (won) {
       if (playMode === 'survival' && reason === 'amber') {
@@ -2879,7 +2932,7 @@
   function update(dt) {
     animT += dt;
     menuPulse += dt;
-    if (state === 'MENU' || state === 'LEVELUP' || state === 'PAUSED' || state === 'GAMEOVER' || state === 'WIN') return;
+    if (state === 'MENU' || state === 'LEVELUP' || state === 'PAUSED' || state === 'AMBER_CONTINUE' || state === 'GAMEOVER' || state === 'WIN') return;
 
     timeAlive += dt;
     if (flashHurt > 0) flashHurt -= dt;
@@ -3051,9 +3104,9 @@
           killCount++;
           AudioFX.kill();
           syncBossBgm(true);
-          // Survival: defeating Amber Colossus King wins the run.
+          // Survival: Amber defeat → Continue? prompt (endless) or claim victory.
           if (wasAmberKing && playMode === 'survival') {
-            showEnd(true, 'amber');
+            showAmberContinue();
             return;
           }
           continue;
@@ -3558,9 +3611,11 @@
   }
 
   function draw() {
-    // Scale world onto full canvas so ~25% less meadow is visible; UI stays CSS-sized.
+    // BUFFER_SCALE supersamples the logical view; VIEW_ZOOM≈1 keeps FOV baked into W/H.
+    // UI stays CSS-sized (--ui-scale) and independent of the world buffer.
     ctx.save();
-    ctx.setTransform(VIEW_ZOOM, 0, 0, VIEW_ZOOM, 0, 0);
+    const z = VIEW_ZOOM * BUFFER_SCALE;
+    ctx.setTransform(z, 0, 0, z, 0, 0);
     ctx.imageSmoothingEnabled = false;
     const savedW = W, savedH = H;
     W = savedW / VIEW_ZOOM;
@@ -3614,7 +3669,13 @@
     getCanvas: () => canvas,
     get VERSION() { return VERSION; },
     get VIEW_ZOOM() { return VIEW_ZOOM; },
+    get BUFFER_SCALE() { return BUFFER_SCALE; },
+    get BASE_W() { return BASE_W; },
+    get BASE_H() { return BASE_H; },
     get playMode() { return playMode; },
+    continueAfterAmber,
+    claimAmberVictory,
+    showAmberContinue,
     MONARCH_INTERVAL,
     KING_SPAWN_START,
     KING_SPAWN_INTERVAL,
