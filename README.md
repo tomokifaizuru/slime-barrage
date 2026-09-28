@@ -4,7 +4,7 @@ A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoo
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.1 redo** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Cache-bust `?v=v11b`.
+> **v1.1 redo** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival tuning patch: starts at 80%, ramps +3.5%/min, and uses an 80% starting mob spawn rate. Cache-bust `?v=v11c`.
 
 ## How to play
 
@@ -35,7 +35,7 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 | Mode | Goal |
 |------|------|
-| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **15:00**) to **win**. Difficulty starts at **100%**, ramps **+5%/min** to **220%**. HUD shows time survived. |
+| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **15:00**) to **win**. Difficulty starts at **80%**, ramps **+3.5%/min** to **220%**; mob spawn rate starts at **80%** of normal. HUD shows time survived. |
 | **Timed** | Survive **6:00** to win. Milder difficulty curve. |
 
 Last mode is remembered in `localStorage`.
@@ -66,7 +66,7 @@ Scoring:
 
 ## What’s new in v1.1 (redo)
 
-- Survival difficulty **100% → +5%/min → 220%** (was 30%→200%).
+- Survival difficulty **80% → +3.5%/min → 220%**; starting mob spawn rate is **80%** of normal.
 - Survival **Big Kings** at **5:00 / 10:00 / 15:00** (Frostmint → Crown Jelly → Amber). Same HP×2 / size rules. **Defeating Amber = WIN** (victory screen + victorious SFX jingle).
 - New skill: **Barrier Shield** (+50 absorb shield, additive, cap 200; HUD bar + chip + cyan ring).
 - **Global rankings** fresh boards (gameId 18/19); side-by-side Survival / Timed.
