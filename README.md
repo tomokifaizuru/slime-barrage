@@ -1,10 +1,10 @@
-# Slime Barrage v1.1
+# Slime Barrage v1.10
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **defeat the Amber Colossus King** (Survival) or **win Timed at 6:00**.
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.1** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival: starts **68%**, ramps **+2.5%/min**, caps **200%**; kings every **4 min from 4:00**; camera zoomed out ~20%; XP table hardcoded; Sneaker max **6**; HUD skill icons; gold sparks only. Cache-bust `?v=v11g`.
+> **v1.10** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival: starts **68%**, ramps **+2.5%/min**, caps **200%**; kings every **4 min from 4:00**; camera zoomed out ~20%; XP table hardcoded; Sneaker max **6**; HUD skill icons; gold sparks only. Cache-bust `?v=1.10`.
 
 ## How to play
 
@@ -67,7 +67,7 @@ Scoring:
 - **Survival:** `time×5 + kills×12 + lv×20`
 - **Timed:** `kills×10 + time×2 + lv×25`
 
-## What’s new in v1.1
+## What’s new in v1.10
 
 - Survival difficulty **68% → +2.5%/min → 200%**; spawn-rate scale shares that curve (starts **68%**).
 - Each minute: normal + elite mobs gain **+1% speed and +1% damage** (stacking, separate from difficulty).

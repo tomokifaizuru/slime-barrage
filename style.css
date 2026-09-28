@@ -738,7 +738,7 @@ html, body {
 }
 
 
-/* Run HUD chips — left column under HP/XP (v1.1) */
+/* Run HUD chips — left column under HP/XP (v1.10) */
 .run-chips {
   display: flex;
   flex-direction: column;
