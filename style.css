@@ -201,6 +201,13 @@ html, body {
   color: #a090c8;
   margin-bottom: 0.4em;
 }
+.version-label {
+  margin: 0.1em 0 0;
+  color: #ffe8a0;
+  font-size: 0.8em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
 .hint {
   font-size: 0.95em;
   color: #8090a8;
