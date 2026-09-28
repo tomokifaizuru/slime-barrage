@@ -3,11 +3,12 @@
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
- * Mid-run Pink-Mint Monarch×2 every 3m; Survival Big Kings at 7/14/21.
+ * Mid-run Pink-Mint Monarch×2 every 3m; Survival Big Kings at 5/10/15.
  * Portrait/landscape world zoom, infinite meadow, Survival + Timed modes.
  * Orbit Guard (10), Pulse Laser L1–10, Omni (after Laser 6), Fairy (5 / L8).
- * Wipe skill, XP gem tiers, HP regen, dimmed-max cards, HUD run chips.
- * Multishot/Sharp/Rapid/Sneaker max 8; Pierce 6; HP 200; Survival 30%→200%.
+ * Wipe skill, Barrier Shield, XP gem tiers, HP regen, HUD run chips.
+ * Multishot/Sharp/Rapid/Sneaker max 8; Pierce 6; HP 200; Survival 100%→220%.
+ * Survival win on Amber Colossus; global rankings (fresh gameIds 18/19).
  */
 (() => {
   'use strict';
@@ -45,12 +46,14 @@
   const MAX_HP_CAP = 200;
   const HP_REGEN_INTERVAL = 2; // +1 HP every 2s while PLAYING
   const WIPE_COOLDOWN = 120;
-  // Survival difficulty: 30% baseline at t=0, +5%/min, max 200%.
-  const SURVIVAL_DIFF_START = 0.30;
+  // Survival difficulty: 100% baseline at t=0, +5%/min, max 220%.
+  const SURVIVAL_DIFF_START = 1.00;
   const SURVIVAL_DIFF_RAMP = 0.05;
-  const SURVIVAL_DIFF_MAX = 2.0;
-  // Big King Slimes (Survival): first at 7:00, then every 7 minutes.
-  const KING_SPAWN_TIMES = [420, 840, 1260]; // 7:00, 14:00, 21:00
+  const SURVIVAL_DIFF_MAX = 2.20;
+  // Big King Slimes (Survival): 5:00 / 10:00 / 15:00. Amber kill = win.
+  const KING_SPAWN_TIMES = [300, 600, 900]; // 5:00, 10:00, 15:00
+  const SHIELD_PER_PICK = 50;
+  const SHIELD_CAP = 200;
   const KING_DEFS = [
     { id: 'frost', color: 'kingFrost', name: 'Frostmint Regent', r: 120, frameSize: 160 },
     { id: 'crown', color: 'kingCrown', name: 'Crown Jelly Sovereign', r: 136, frameSize: 176 },
@@ -112,6 +115,10 @@
     rankNameInput: document.getElementById('rankNameInput'),
     rankSaveNameBtn: document.getElementById('rankSaveNameBtn'),
     endRankNote: document.getElementById('endRankNote'),
+    rankStatus: document.getElementById('rankStatus'),
+    shieldFill: document.getElementById('shieldFill'),
+    shieldText: document.getElementById('shieldText'),
+    shieldWrap: document.getElementById('shieldWrap'),
   };
 
   // Resize internal view to match viewport aspect, then CSS-size the box to fill.
@@ -657,10 +664,28 @@
       tone(200, 0.35, 'sawtooth', 0.2, 40);
       setTimeout(() => noise(0.25, 0.12, 300), 80);
     }
+    /** Short victorious chiptune jingle (~2.2s). Respects mute + SFX volume. */
     function win() {
-      [523, 659, 784, 1046, 784, 1046].forEach((f, i) => {
-        setTimeout(() => tone(f, 0.14, 'triangle', 0.14), i * 90);
+      const fanfare = [
+        [392, 0.12, 'square', 0.11, 0],
+        [523, 0.12, 'square', 0.12, 90],
+        [659, 0.12, 'triangle', 0.13, 180],
+        [784, 0.16, 'triangle', 0.14, 270],
+        [1046, 0.22, 'square', 0.13, 400],
+        [784, 0.10, 'triangle', 0.10, 620],
+        [988, 0.10, 'triangle', 0.11, 720],
+        [1175, 0.14, 'square', 0.12, 820],
+        [1568, 0.28, 'triangle', 0.14, 960],
+        [1319, 0.18, 'sine', 0.10, 1240],
+        [1568, 0.35, 'triangle', 0.13, 1420],
+        [2093, 0.22, 'sine', 0.08, 1780],
+      ];
+      fanfare.forEach(([f, dur, wave, vol, delay]) => {
+        setTimeout(() => tone(f, dur, wave, vol), delay);
       });
+      setTimeout(() => noise(0.08, 0.05, 2200), 400);
+      setTimeout(() => noise(0.10, 0.04, 2800), 960);
+      setTimeout(() => noise(0.12, 0.05, 3200), 1560);
     }
     function click() { tone(660, 0.04, 'square', 0.07); }
 
@@ -1621,6 +1646,11 @@
       p.fairyRadius = 52 + Math.min(24, (p.fairyLevel - 1) * 3);
       if (p.fairyCd <= 0) p.fairyCd = 0.3;
     } },
+    { id: 'barrier', name: 'Barrier Shield', desc: '+50 shield (absorb before HP · cap 200)', apply: p => {
+      // Additive: each pick +50, soft-capped at SHIELD_CAP.
+      p.shield = Math.min(SHIELD_CAP, (p.shield || 0) + SHIELD_PER_PICK);
+      p.barrierPicks = (p.barrierPicks || 0) + 1;
+    } },
   ];
 
   function laserIntervalForLevel(lv) {
@@ -1629,7 +1659,7 @@
     return Math.max(0.75, 2.0 - (cadenceLv - 1) * 0.25);
   }
 
-  /** Survival difficulty multiplier: 30% at t=0 → +5%/min → max 200%. */
+  /** Survival difficulty multiplier: 100% at t=0 → +5%/min → max 220%. */
   function survivalDiffMul() {
     const mins = Math.floor(timeAlive / 60);
     return Math.min(SURVIVAL_DIFF_MAX, SURVIVAL_DIFF_START + mins * SURVIVAL_DIFF_RAMP);
@@ -1693,6 +1723,8 @@
       fairyRadius: 52,
       fairyAngle: 0,
       hpRegenAcc: 0,
+      shield: 0,
+      barrierPicks: 0,
     };
   }
 
@@ -1885,7 +1917,16 @@
     const hpPct = Math.max(0, Math.min(1, player.hp / player.maxHp)) * 100;
     el.hpFill.style.width = hpPct + '%';
     el.hpFill.classList.toggle('low', player.hp / player.maxHp < 0.3);
-    el.hpText.textContent = 'HP ' + Math.ceil(player.hp) + '/' + player.maxHp;
+    const sh = Math.max(0, player.shield | 0);
+    el.hpText.textContent = sh > 0
+      ? ('HP ' + Math.ceil(player.hp) + '/' + player.maxHp + ' · SHD ' + sh)
+      : ('HP ' + Math.ceil(player.hp) + '/' + player.maxHp);
+    if (el.shieldWrap) {
+      el.shieldWrap.classList.toggle('hidden', sh <= 0);
+      const shPct = Math.max(0, Math.min(1, sh / SHIELD_CAP)) * 100;
+      if (el.shieldFill) el.shieldFill.style.width = shPct + '%';
+      if (el.shieldText) el.shieldText.textContent = 'SHD ' + sh + '/' + SHIELD_CAP;
+    }
     const xpPct = Math.max(0, Math.min(1, player.xp / player.xpNext)) * 100;
     el.xpFill.style.width = xpPct + '%';
     el.xpText.textContent = 'Lv ' + player.level;
@@ -1916,7 +1957,7 @@
 
   // ---------- Spawning ----------
   function difficultyScale() {
-    // Survival: 30% → +5%/min → max 200%. Timed: mild classic curve.
+    // Survival: 100% → +5%/min → max 220%. Timed: mild classic curve.
     if (playMode === 'survival') return survivalDiffMul();
     return 1 + timeAlive / 420;
   }
@@ -2179,6 +2220,7 @@
       case 'hp': return player.maxHp >= MAX_HP_CAP;
       case 'orbit': return (player.orbitOrbs || 0) >= ORBIT_MAX;
       case 'fairy': return (player.fairyLevel || 0) >= FAIRY_MAX;
+      case 'barrier': return (player.shield || 0) >= SHIELD_CAP;
       default: return false; // uncapped: magnet/heal
     }
   }
@@ -2213,7 +2255,8 @@
       buildChipHtml('Spark', player.dmgLevel || 0, DMG_MAX) +
       buildChipHtml('Rapid', player.rateLevel || 0, RATE_MAX) +
       buildChipHtml('Sneak', player.spdLevel || 0, SPD_MAX) +
-      buildChipHtml('HP', player.maxHp, MAX_HP_CAP)
+      buildChipHtml('HP', player.maxHp, MAX_HP_CAP) +
+      buildChipHtml('Shield', player.shield || 0, SHIELD_CAP)
     );
   }
 
@@ -2280,15 +2323,39 @@
     syncHud();
   }
 
-  // ---------- Ranking (local device boards; online-ready shape) ----------
+  // ---------- Ranking (global online + fresh local cache) ----------
+  // Fresh keys so old local Tomo/Slime ranks never pollute. Old keys cleared on load.
   const LB_KEYS = {
-    survival: 'slimeBarrageLbSurvival',
-    timed: 'slimeBarrageLbTimed',
+    survival: 'slimeBarrageV11bLbSurvival',
+    timed: 'slimeBarrageV11bLbTimed',
   };
+  const LB_OLD_KEYS = [
+    'slimeBarrageLbSurvival',
+    'slimeBarrageLbTimed',
+  ];
   const LB_MAX = 10;
+  // HighScore API — NEW gameIds (NOT Tomo Crossroad gameId 17).
+  const ONLINE_LB_BASE = 'https://api-leaderboard.qulyubis.biz.id';
+  const ONLINE_LB = {
+    survival: {
+      gameId: 18,
+      apiKey: 'game_uVnYcAsCBSrE5dg2mgw4rZ9a86m8UyucdGh1WZGwJl8',
+      name: 'Slime Barrage Survival',
+    },
+    timed: {
+      gameId: 19,
+      apiKey: 'game_47_JyQeGogxX8sGHoLLQvvT7NAXrBgVLNukGA3pIcoI',
+      name: 'Slime Barrage Timed',
+    },
+  };
+
+  (function clearStaleLocalRanks() {
+    try {
+      for (const k of LB_OLD_KEYS) localStorage.removeItem(k);
+    } catch (_) {}
+  })();
 
   function computeScore(mode, kills, time, level) {
-    // Timed: kills/time/level blend. Survival: emphasize time survived + kills.
     if (mode === 'survival') {
       return Math.floor(timeAlive) * 5 + kills * 12 + level * 20;
     }
@@ -2325,6 +2392,104 @@
     return playerName;
   }
 
+  function sanitizeLbName(n) {
+    return String(n || 'Player').trim().slice(0, 50) || 'Player';
+  }
+
+  function setRankStatus(text, kind) {
+    if (!el.rankStatus) return;
+    el.rankStatus.textContent = text || '';
+    el.rankStatus.className = 'rank-status' + (kind ? ' ' + kind : '');
+  }
+
+  function postOnlineScore(mode, name, scoreVal, meta) {
+    const cfg = ONLINE_LB[mode];
+    if (!cfg) return;
+    const cleanName = sanitizeLbName(name);
+    const sc = parseInt(scoreVal, 10) || 0;
+    if (sc <= 0) return;
+    try {
+      fetch(ONLINE_LB_BASE + '/api/v1/scores', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': cfg.apiKey,
+        },
+        body: JSON.stringify({
+          player_name: cleanName,
+          score: sc,
+          game_metadata: {
+            mode: mode,
+            kills: (meta && meta.kills) | 0,
+            time: meta && meta.time != null ? meta.time : 0,
+            level: (meta && meta.level) | 0,
+            version: VERSION,
+          },
+        }),
+      }).catch(function () { /* offline */ });
+    } catch (_) {}
+  }
+
+  function mapOnlineEntries(entries) {
+    const out = [];
+    if (!Array.isArray(entries)) return out;
+    for (const e of entries) {
+      if (!e || typeof e !== 'object') continue;
+      const name = sanitizeLbName(e.player_name != null ? e.player_name : e.name);
+      const score = parseInt(e.score, 10);
+      if (!Number.isFinite(score) || score < 0) continue;
+      let at = 0;
+      if (e.created_at) {
+        const t = Date.parse(e.created_at);
+        at = Number.isFinite(t) ? t : 0;
+      } else if (e.at) {
+        at = Number(e.at) || 0;
+      }
+      const md = e.game_metadata || {};
+      out.push({
+        name,
+        score,
+        kills: (md.kills | 0) || 0,
+        time: md.time != null ? Number(md.time) || 0 : 0,
+        level: (md.level | 0) || 0,
+        at,
+        online: true,
+      });
+    }
+    return out;
+  }
+
+  function fetchOnlineBoard(mode, limit) {
+    const cfg = ONLINE_LB[mode];
+    if (!cfg) return Promise.reject(new Error('no cfg'));
+    const lim = limit || LB_MAX;
+    return fetch(ONLINE_LB_BASE + '/api/v1/leaderboard?limit=' + lim, {
+      headers: { 'X-API-Key': cfg.apiKey },
+    }).then(function (res) {
+      if (!res.ok) throw new Error('leaderboard ' + res.status);
+      return res.json();
+    }).then(function (data) {
+      return mapOnlineEntries(data && data.entries);
+    });
+  }
+
+  function mergeBoards(local, online) {
+    // Prefer online as source of truth for display; keep local personal entries
+    // that might not have synced yet (same name+score+near time).
+    const byKey = new Map();
+    function keyOf(e) {
+      return (e.name || '').toLowerCase() + '|' + (e.score | 0);
+    }
+    for (const e of online || []) byKey.set(keyOf(e), e);
+    for (const e of local || []) {
+      const k = keyOf(e);
+      if (!byKey.has(k)) byKey.set(k, e);
+    }
+    return Array.from(byKey.values())
+      .sort((a, b) => b.score - a.score || (b.time || 0) - (a.time || 0))
+      .slice(0, LB_MAX);
+  }
+
   function submitScore(mode, score, meta) {
     const name = ensurePlayerName();
     const entry = {
@@ -2336,15 +2501,27 @@
       at: Date.now(),
     };
     const board = loadBoard(mode);
-    board.push(entry);
-    board.sort((a, b) => b.score - a.score || b.time - a.time);
+    // Keep best per name locally (fresh board)
+    const lower = name.toLowerCase();
+    const idx = board.findIndex(e => (e.name || '').toLowerCase() === lower);
+    let improved = true;
+    if (idx >= 0) {
+      if (score > board[idx].score) board[idx] = entry;
+      else improved = false;
+    } else {
+      board.push(entry);
+    }
+    board.sort((a, b) => b.score - a.score || (b.time || 0) - (a.time || 0));
     saveBoard(mode, board);
-    return { name, score, rank: board.findIndex(e => e === board.find(x => x.at === entry.at && x.score === entry.score)) + 1 };
+    if (improved) postOnlineScore(mode, name, score, meta);
+    else postOnlineScore(mode, name, score, meta); // still try online (server keeps best)
+    const rank = board.findIndex(e => (e.name || '').toLowerCase() === lower) + 1;
+    return { name, score, rank: rank > 0 ? rank : board.length, improved };
   }
 
-  function renderRankList(elList, mode) {
+  function renderRankList(elList, mode, boardOpt) {
     if (!elList) return;
-    const board = loadBoard(mode);
+    const board = Array.isArray(boardOpt) ? boardOpt : loadBoard(mode);
     if (!board.length) {
       elList.innerHTML = '<li class="rank-empty">No scores yet</li>';
       return;
@@ -2362,10 +2539,31 @@
     })[c]);
   }
 
-  function refreshRanksUI() {
-    renderRankList(el.rankSurvivalList, 'survival');
-    renderRankList(el.rankTimedList, 'timed');
+  function refreshRanksUI(boards) {
+    renderRankList(el.rankSurvivalList, 'survival', boards && boards.survival);
+    renderRankList(el.rankTimedList, 'timed', boards && boards.timed);
     if (el.rankNameInput && playerName) el.rankNameInput.value = playerName;
+  }
+
+  function syncOnlineRanks() {
+    setRankStatus('Syncing global ranks\u2026', 'syncing');
+    const gen = (syncOnlineRanks._gen = (syncOnlineRanks._gen || 0) + 1);
+    return Promise.all([
+      fetchOnlineBoard('survival', LB_MAX).catch(err => ({ __err: err })),
+      fetchOnlineBoard('timed', LB_MAX).catch(err => ({ __err: err })),
+    ]).then(([surv, timed]) => {
+      if (gen !== syncOnlineRanks._gen) return;
+      const survOk = !surv || !surv.__err;
+      const timedOk = !timed || !timed.__err;
+      const survMerged = mergeBoards(loadBoard('survival'), survOk ? surv : []);
+      const timedMerged = mergeBoards(loadBoard('timed'), timedOk ? timed : []);
+      if (survOk) saveBoard('survival', survMerged);
+      if (timedOk) saveBoard('timed', timedMerged);
+      refreshRanksUI({ survival: survMerged, timed: timedMerged });
+      if (survOk && timedOk) setRankStatus('Online \u00b7 global synced (Survival #' + ONLINE_LB.survival.gameId + ' / Timed #' + ONLINE_LB.timed.gameId + ')', 'online');
+      else if (!survOk && !timedOk) setRankStatus('Offline \u00b7 local fresh cache only', 'offline');
+      else setRankStatus('Partial sync \u00b7 some boards offline', 'error');
+    });
   }
 
   function openRanks() {
@@ -2373,15 +2571,20 @@
     refreshRanksUI();
     state = 'MENU';
     showOnly('ranks');
+    syncOnlineRanks();
   }
 
-  function showEnd(won) {
+  function showEnd(won, reason) {
     state = won ? 'WIN' : 'GAMEOVER';
     AudioFX.stopBgm(true);
     if (won) AudioFX.win(); else AudioFX.death();
     const modeLabel = playMode === 'survival' ? 'Survival' : 'Timed';
     if (won) {
-      el.endTitle.textContent = 'YOU SURVIVED!';
+      if (playMode === 'survival' && reason === 'amber') {
+        el.endTitle.textContent = 'VICTORY!';
+      } else {
+        el.endTitle.textContent = 'YOU SURVIVED!';
+      }
     } else if (playMode === 'survival') {
       el.endTitle.textContent = 'RUN ENDED';
     } else {
@@ -2401,19 +2604,23 @@
       kills: killCount, time: timeAlive, level: player.level,
     });
     const formula = playMode === 'survival'
-      ? 'Score = time×5 + kills×12 + lv×20'
-      : 'Score = kills×10 + time×2 + lv×25';
+      ? 'Score = time\u00d75 + kills\u00d712 + lv\u00d720'
+      : 'Score = kills\u00d710 + time\u00d72 + lv\u00d725';
+    const winNote = (won && playMode === 'survival' && reason === 'amber')
+      ? '<div class="win-note">Amber Colossus King defeated!</div>'
+      : '';
     el.endStats.innerHTML =
+      winNote +
       '<div>Mode  ' + modeLabel + '</div>' +
       '<div>Time  ' + formatTime(timeAlive) + '</div>' +
       bestLine +
       '<div>Kills  ' + killCount + '</div>' +
       '<div>Level  ' + player.level + '</div>' +
       '<div class="score">Score  ' + score + '</div>' +
-      '<div class="rank-submit">Local rank #' + submitted.rank + ' · ' + escapeHtml(submitted.name) + '</div>' +
-      '<div class="rank-formula">' + formula + ' · local device board</div>';
+      '<div class="rank-submit">Rank #' + submitted.rank + ' \u00b7 ' + escapeHtml(submitted.name) + '</div>' +
+      '<div class="rank-formula">' + formula + ' \u00b7 global board</div>';
     if (el.endRankNote) {
-      el.endRankNote.textContent = 'Saved to local ' + modeLabel + ' ranks (top 10).';
+      el.endRankNote.textContent = 'Submitted to global ' + modeLabel + ' ranks (top 10). Fresh board \u2014 old local scores cleared.';
     }
     showOnly('end');
     syncHud();
@@ -2797,10 +3004,16 @@
         if (wasBoss) {
           addParticles(e.x, e.y - 16, '#e8c84a', 14);
           addParticles(e.x, e.y, '#7dcea0', 12);
+          const wasAmberKing = e.bossKind === 'king' && e.kingId === 'amber';
           enemies.splice(i, 1);
           killCount++;
           AudioFX.kill();
           syncBossBgm(true);
+          // Survival: defeating Amber Colossus King wins the run.
+          if (wasAmberKing && playMode === 'survival') {
+            showEnd(true, 'amber');
+            return;
+          }
           continue;
         }
         enemies.splice(i, 1);
@@ -2818,11 +3031,23 @@
       resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
 
       if (d < e.r + 8 && player.invuln <= 0) {
-        player.hp -= e.damage;
+        let dmgLeft = e.damage;
+        if ((player.shield || 0) > 0) {
+          const absorbed = Math.min(player.shield, dmgLeft);
+          player.shield -= absorbed;
+          dmgLeft -= absorbed;
+          addParticles(player.x, player.y, '#7cf0ff', 6);
+        }
+        if (dmgLeft > 0) {
+          player.hp -= dmgLeft;
+          addParticles(player.x, player.y, '#ff6688', 8);
+          AudioFX.hurt();
+        } else {
+          // Shield fully absorbed — softer ping
+          AudioFX.hit();
+        }
         player.invuln = 0.7;
         flashHurt = 0.25;
-        addParticles(player.x, player.y, '#ff6688', 8);
-        AudioFX.hurt();
         if (player.hp <= 0) {
           player.hp = 0;
           showEnd(false);
@@ -2923,6 +3148,19 @@
   }
 
   function drawPlayer() {
+    // Soft cyan barrier ring when shield is up.
+    if ((player.shield || 0) > 0) {
+      const sx = player.x - cam.x;
+      const sy = player.y - cam.y;
+      const pulse = 0.55 + 0.25 * Math.sin(animT * 6);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(124, 240, 255, ' + pulse + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(sx, sy - 4, 16 + Math.min(6, (player.shield || 0) / 40), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     const s = worldToScreen(player.x, player.y);
     let spr = heroFront;
     if (player.moving) {
@@ -3285,6 +3523,11 @@
     get playMode() { return playMode; },
     BOSS_SPAWN_AT,
     WIN_TIME_TIMED,
+    KING_SPAWN_TIMES,
+    SURVIVAL_DIFF_START,
+    SURVIVAL_DIFF_MAX,
+    SHIELD_CAP,
+    ONLINE_LB,
     MULTISHOT_MAX,
     togglePause,
     spawnMonarchBoss,

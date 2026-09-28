@@ -109,7 +109,10 @@ html, body {
 }
 .bar-fill.hp { background: linear-gradient(90deg, #f0a0c0, #ff88aa); }
 .bar-fill.hp.low { background: linear-gradient(90deg, #ff3355, #ff6688); }
+.bar-fill.shield { background: linear-gradient(90deg, #40c8e8, #a0f0ff); box-shadow: 0 0 6px rgba(124,240,255,0.45); }
 .bar-fill.xp { background: linear-gradient(90deg, #40d8f0, #7cf0ff); }
+.shield-wrap { margin-top: 2px; }
+.shield-wrap .bar-label { color: #d8fbff; }
 .bar-label {
   position: relative;
   z-index: 1;
@@ -527,6 +530,18 @@ html, body {
 .card.card-special .card-name { color: #ffe060 !important; }
 .card.card-special .card-num { color: #ffe8a0; }
 
+.rank-status {
+  text-align: center;
+  font-size: 0.78em;
+  font-weight: 700;
+  color: #a090c8;
+  margin: 0.2em 0 0.55em;
+  min-height: 1.2em;
+}
+.rank-status.online { color: #7dcea0; }
+.rank-status.offline, .rank-status.error { color: #e8a070; }
+.rank-status.syncing { color: #c4b0e8; }
+.end-stats .win-note { color: #ffe8a0; font-weight: 800; margin-bottom: 0.35em; }
 #ranks .panel-sub {
   font-size: 0.9em;
   color: #a0b0c8;

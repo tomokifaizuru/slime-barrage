@@ -6,10 +6,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Slime Barrage" />
   <title>Slime Barrage v1.1</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v11" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v11" />
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v11" />
-  <link rel="stylesheet" href="style.css?v=v11" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=v11b" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=v11b" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=v11b" />
+  <link rel="stylesheet" href="style.css?v=v11b" />
 </head>
 <body>
   <div id="stage">
@@ -21,6 +21,10 @@
             <div class="bar-wrap hp-wrap">
               <div id="hpFill" class="bar-fill hp"></div>
               <span id="hpText" class="bar-label">HP 100/100</span>
+            </div>
+            <div id="shieldWrap" class="bar-wrap shield-wrap hidden">
+              <div id="shieldFill" class="bar-fill shield"></div>
+              <span id="shieldText" class="bar-label">SHD 0/200</span>
             </div>
             <div class="bar-wrap xp-wrap">
               <div id="xpFill" class="bar-fill xp"></div>
@@ -54,7 +58,7 @@
             <button type="button" id="playSurvivalBtn" class="btn mode-btn">SURVIVAL</button>
             <button type="button" id="playTimedBtn" class="btn primary mode-btn">TIMED 6:00</button>
           </div>
-          <p class="mode-hint"><span class="mode-tag">Survival</span> no timer — ramp until you fall · <span class="mode-tag">Timed</span> win at 6:00</p>
+          <p class="mode-hint"><span class="mode-tag">Survival</span> defeat Amber King @15:00 to win · <span class="mode-tag">Timed</span> win at 6:00</p>
           <div class="menu-audio">
             <div class="vol-row">
               <label for="musicVol">Music</label>
@@ -69,9 +73,9 @@
             <button type="button" id="muteBtnMenu" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
           </div>
           <button type="button" id="ranksBtn" class="btn ranks-btn">RANKINGS</button>
-          <p class="hint">v1.1 · WASD / Arrows · auto-fires · Wipe (starts on CD)</p>
-          <p class="hint">Kings 7/14/21 · Multi/Spark/Rapid/Sneak 8 · Orbit 10 · Laser 10 · Fairy 8 · Pierce 6</p>
-          <p class="hint score-hint">Ranks: local device top 10 · Survival (time×5+kills×12+lv×20) · Timed (kills×10+time×2+lv×25)</p>
+          <p class="hint">v1.1 redo · WASD / Arrows · auto-fires · Wipe (starts on CD)</p>
+          <p class="hint">Kings 5/10/15 · Barrier Shield · Multi/Spark/Rapid/Sneak 8 · Orbit 10 · Laser 10 · Fairy 8</p>
+          <p class="hint score-hint">Ranks: GLOBAL fresh boards · Survival (time×5+kills×12+lv×20) · Timed (kills×10+time×2+lv×25)</p>
         </div>
 
         <div id="pause" class="panel dim hidden">
@@ -110,7 +114,8 @@
 
         <div id="ranks" class="panel dim hidden">
           <h2 class="panel-title">RANKINGS</h2>
-          <p class="panel-sub">Local device boards · top 10 each · online-ready later</p>
+          <p class="panel-sub">Global online boards · top 10 each · Survival | Timed</p>
+          <p id="rankStatus" class="rank-status" aria-live="polite"></p>
           <div class="rank-name-row">
             <label for="rankNameInput">Name</label>
             <input type="text" id="rankNameInput" maxlength="16" placeholder="Player" autocomplete="nickname" />
@@ -137,7 +142,7 @@
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js?v=v11"></script>
+  <script src="game.js?v=v11b"></script>
 
 </body>
 </html>
