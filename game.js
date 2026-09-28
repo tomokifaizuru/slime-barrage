@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v1.10
+ * Slime Barrage v1.11
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
@@ -14,7 +14,7 @@
   'use strict';
 
   // ---------- Config ----------
-  // Mutable view size: higher-res buffer (was 480×270) with VIEW_ZOOM≈1 so
+  // Mutable view size: higher-res buffer (was 480×270) with VIEW_ZOOM≈1 (landscape) so
   // the zoomed-out meadow FOV is default AND sprites stay crisp (no soft shrink).
   // Portrait grows taller for width-fit (no letterbars / no side crop).
   // Prior FOV: portrait ~480/1.24≈387, landscape ~480/0.84≈571 — we meet/exceed that.
@@ -23,7 +23,7 @@
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v1.10';
+  const VERSION = 'v1.11';
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
@@ -31,7 +31,7 @@
   const VIEW_H_MAX = 1400;
   // World→screen zoom. Baked FOV into BASE_W so default is zoomed-out + crisp.
   // Kept near 1.0 (identity) — soft/chunky look came from zoom≠1 on a small buffer.
-  const VIEW_ZOOM_PORTRAIT = 1;
+  const VIEW_ZOOM_PORTRAIT = 1 / 1.3;
   const VIEW_ZOOM_LANDSCAPE = 1;
   let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
   // Extra buffer pixels for retina / CSS downscale (pixel art stays nearest-neighbor).
@@ -177,7 +177,7 @@
     const vw = window.innerWidth || document.documentElement.clientWidth || BASE_W;
     const vh = window.innerHeight || document.documentElement.clientHeight || BASE_H;
     const isPortrait = vh > vw;
-    // Zoomed-out FOV is baked into BASE_W with VIEW_ZOOM≈1 (crisp sprites).
+    // Landscape FOV is baked into BASE_W with VIEW_ZOOM=1; portrait uses a wider FOV (0.769).
     // Does NOT enlarge HUD/UI chrome (CSS --ui-scale stays independent).
     VIEW_ZOOM = isPortrait ? VIEW_ZOOM_PORTRAIT : VIEW_ZOOM_LANDSCAPE;
 
@@ -3614,7 +3614,7 @@
   }
 
   function draw() {
-    // BUFFER_SCALE supersamples the logical view; VIEW_ZOOM≈1 keeps FOV baked into W/H.
+    // BUFFER_SCALE supersamples the logical view; landscape VIEW_ZOOM=1 keeps FOV baked into W/H.
     // UI stays CSS-sized (--ui-scale) and independent of the world buffer.
     ctx.save();
     const z = VIEW_ZOOM * BUFFER_SCALE;
