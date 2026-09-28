@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v1.14
+ * Slime Barrage v1.15
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
@@ -23,7 +23,7 @@
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v1.14';
+  const VERSION = 'v1.15';
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
@@ -63,17 +63,20 @@
   const MAX_HP_CAP = 200;
   const HP_REGEN_INTERVAL = 2; // +1 HP every 2s while PLAYING
   const WIPE_COOLDOWN = 120;
-  // Survival difficulty: 68% baseline at t=0, +2.5%/min, max 200%.
+  // Survival difficulty: 68% baseline through 1:00, then +2.5%/min, max 200%.
   // Spawn interval uses this same scale, so initial mob spawn rate is 68%.
   const SURVIVAL_DIFF_START = 0.68;
   const SURVIVAL_DIFF_RAMP = 0.025;
+  const SURVIVAL_DIFF_RAMP_START_T = 60;
+  // Normal + elite spawn rate is 85% of the prior rate; bosses are separate.
+  const NORMAL_ELITE_SPAWN_RATE_MUL = 0.85;
   const SURVIVAL_DIFF_MAX = 2.0;
   // Big King Slimes (Survival): every 4 min from 4:00. Amber → Continue?/claim win.
   // Cycle Frostmint → Crown Jelly → Amber; later sets ×4/3 HP & speed.
   const KING_SPAWN_START = 240; // 4:00
   const KING_SPAWN_INTERVAL = 240; // every 4 minutes
   const KING_SET_SCALE = 4 / 3; // +1/3 HP & speed per completed trio
-  const ELITE_SPAWN_MIN_T = 60; // elite purple first eligible after 60s
+  const ELITE_SPAWN_MIN_T = 90; // elite purple first eligible after 90s
   // Hardcoded XP gem totals (final drop amounts), halved from v1.1.
   const XP_BLUE_NORMAL = 1;
   const XP_BLUE_PURPLE_TINT = 2; // purple-colored normal slime (rounded from 1.5)
@@ -930,7 +933,7 @@
     let z = parseFloat(v);
     if (!isFinite(z)) z = VIEW_ZOOM_DEFAULT;
     z = Math.max(VIEW_ZOOM_MIN, Math.min(VIEW_ZOOM_MAX, z));
-    // Snap to 0.01 so the v1.14b default (1.76) remains exact.
+    // Snap to 0.01 so the v1.15 default (1.76) remains exact.
     z = Math.round(z * 100) / 100;
     VIEW_ZOOM_PORTRAIT = z;
     try { localStorage.setItem('slimeBarrageZoom', String(z)); } catch (_) {}
@@ -1759,10 +1762,10 @@
     return Math.max(0.75, 2.0 - (cadenceLv - 1) * 0.25);
   }
 
-  /** Survival difficulty multiplier: 68% at t=0 → +2.5%/min → max 200%. */
+  /** Survival difficulty: baseline through 1:00, then +2.5% per minute past 1:00. */
   function survivalDiffMul() {
-    const mins = Math.floor(timeAlive / 60);
-    return Math.min(SURVIVAL_DIFF_MAX, SURVIVAL_DIFF_START + mins * SURVIVAL_DIFF_RAMP);
+    const minsPastRampStart = Math.max(0, (timeAlive - SURVIVAL_DIFF_RAMP_START_T) / 60);
+    return Math.min(SURVIVAL_DIFF_MAX, SURVIVAL_DIFF_START + minsPastRampStart * SURVIVAL_DIFF_RAMP);
   }
 
   /** Per-minute stack for normal + elite mobs: +1% speed & damage each minute. */
@@ -2065,7 +2068,7 @@
 
   // ---------- Spawning ----------
   function difficultyScale() {
-    // Survival: 68% → +2.5%/min → max 200%. Timed: mild classic curve.
+    // Survival: 68% through 1:00, then +2.5%/min → max 200%. Timed: mild classic curve.
     if (playMode === 'survival') return survivalDiffMul();
     return 1 + timeAlive / 420;
   }
@@ -3098,7 +3101,9 @@
       spawnBurst(n);
       const baseInt = playMode === 'survival' ? 1.55 : 1.8;
       const ramp = playMode === 'survival' ? 0.012 : 0.008;
-      const interval = Math.max(playMode === 'survival' ? 0.38 : 0.55, baseInt - timeAlive * ramp) / Math.min(1.6, scale);
+      const interval = Math.max(playMode === 'survival' ? 0.38 : 0.55, baseInt - timeAlive * ramp)
+        / Math.min(1.6, scale)
+        / NORMAL_ELITE_SPAWN_RATE_MUL;
       spawnTimer = interval;
       cleanupFarEntities();
       const cap = playMode === 'survival' ? 140 : 120;
@@ -3737,7 +3742,10 @@
     WIN_TIME_TIMED,
     SURVIVAL_DIFF_START,
     SURVIVAL_DIFF_RAMP,
+    SURVIVAL_DIFF_RAMP_START_T,
     SURVIVAL_DIFF_MAX,
+    ELITE_SPAWN_MIN_T,
+    NORMAL_ELITE_SPAWN_RATE_MUL,
     SPD_MAX,
     SHIELD_CAP,
     ONLINE_LB,

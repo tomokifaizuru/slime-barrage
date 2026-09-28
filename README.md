@@ -1,10 +1,10 @@
-# Slime Barrage v1.14
+# Slime Barrage v1.15
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **defeat the Amber Colossus King** (Survival) or **win Timed at 6:00**.
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.14** — **Zoom** slider (Menu + Pause): Far **1.0** … Close **4.0**, default **1.76**, saved as `slimeBarrageZoom`; live-applies portrait `VIEW_ZOOM` only (landscape stays 1). Cache-bust `?v=1.14b` (VERSION display still v1.14).
+> **v1.15** — **Zoom** slider (Menu + Pause): Far **1.0** … Close **4.0**, default **1.76**, saved as `slimeBarrageZoom`; live-applies portrait `VIEW_ZOOM` only (landscape stays 1). Cache-bust `?v=1.15` (VERSION display still v1.15).
 
 ## How to play
 
@@ -36,7 +36,7 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 | Mode | Goal |
 |------|------|
-| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **12:00**, then every set) to **win**. Difficulty starts at **68%**, ramps **+2.5%/min** to **200%**; mob spawn rate shares that scale (starts **68%**). Each minute normal+elite gain **+1% speed & damage**. HUD shows time survived. |
+| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **12:00**, then every set) to **win**. Difficulty holds at **68%** through **1:00**, then ramps **+2.5% per minute** to **200%**; mob spawn rate shares that scale (starts **68%**). Normal + elite spawn at **85%** of the prior rate. Each minute normal+elite gain **+1% speed & damage**. HUD shows time survived. |
 | **Timed** | Survive **6:00** to win. Milder difficulty curve. |
 
 Last mode is remembered in `localStorage`.
@@ -68,13 +68,13 @@ Scoring:
 - **Survival:** `time×5 + kills×12 + lv×20`
 - **Timed:** `kills×10 + time×2 + lv×25`
 
-## What’s new in v1.14
+## What’s new in v1.15
 
-- Survival difficulty **68% → +2.5%/min → 200%**; spawn-rate scale shares that curve (starts **68%**).
+- Survival difficulty holds at **68%** through **1:00**, then ramps **+2.5% per minute** to **200%**; spawn-rate scale shares that curve. Normal + elite spawn rate is **−15%** (boss schedules unchanged).
 - Each minute: normal + elite mobs gain **+1% speed and +1% damage** (stacking, separate from difficulty).
 - Survival **Big Kings** every **4 minutes from 4:00** (Frostmint → Crown Jelly → Amber, then next sets). Later sets **+1/3 HP & speed** vs prior set (×4/3 per set). **Defeating Amber = WIN**.
-- Elite purple slime first eligible after **60s**.
-- **Zoom** slider (Menu + Pause): Far **1.0** … Close **4.0**, default **1.76** (`localStorage` `slimeBarrageZoom`); live-applies portrait `VIEW_ZOOM` only; landscape stays `VIEW_ZOOM_LANDSCAPE=1`. HUD/`--ui-scale` unchanged. Cache `?v=1.14b`.
+- Elite purple slime first eligible after **90s**.
+- **Zoom** slider (Menu + Pause): Far **1.0** … Close **4.0**, default **1.76** (`localStorage` `slimeBarrageZoom`); live-applies portrait `VIEW_ZOOM` only; landscape stays `VIEW_ZOOM_LANDSCAPE=1`. HUD/`--ui-scale` unchanged. Cache `?v=1.15`.
 - Survival Amber kill shows **Continue?** (endless) or **End run** (claim victory).
 - Pink-Mint Monarch size **−20%**; **off-screen location arrow** when Monarch is outside the view.
 - XP gem totals halved (1 / 2 / 13 / 75 / 175 / 212 / 250).
