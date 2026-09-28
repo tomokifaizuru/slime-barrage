@@ -4,7 +4,7 @@ A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoo
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.1 redo** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival tuning patch: starts at 68%, ramps +1%/min, caps at 140%, and uses a 68% starting mob spawn rate. Cache-bust `?v=v11d`.
+> **v1.1** — difficulty / king schedule / Barrier Shield / victory jingle / fresh global rankings. Survival: starts **68%**, ramps **+2.5%/min**, caps **200%**; kings every **4 min from 4:00**; camera zoomed out ~20%; XP table hardcoded; Sneaker max **6**; HUD skill icons; gold sparks only. Cache-bust `?v=v11e`.
 
 ## How to play
 
@@ -35,25 +35,28 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 | Mode | Goal |
 |------|------|
-| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **15:00**) to **win**. Difficulty starts at **68%**, ramps **+1%/min** to **140%**; mob spawn rate starts at **68%** of normal. HUD shows time survived. |
+| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **12:00**, then every set) to **win**. Difficulty starts at **68%**, ramps **+2.5%/min** to **200%**; mob spawn rate shares that scale (starts **68%**). Each minute normal+elite gain **+1% speed & damage**. HUD shows time survived. |
 | **Timed** | Survive **6:00** to win. Milder difficulty curve. |
 
 Last mode is remembered in `localStorage`.
 
 ### Upgrades (pick 1 of 3 on level up)
 
-Sharp Spark (**max 8**), Rapid Fire (**max 8**), Sneaker Boost (**max 8**, move trails), Hoodie Padding (max HP **cap 200**), Gem Magnet, Multishot (**max 8**, blue fireballs at max), Pierce Shot (**max 6**), Snack Break (heal), **Orbit Guard** (**max 10**), **Orbiting Fairy** (max level **8** / up to **5** on screen, gold auras L6–8), **Pulse Laser** (L1–10), **Omni Beam** (8/12-way burst — **only after Laser 6**), **Barrier Shield** (**+50 shield** each pick, absorb before HP, **cap 200**, additive).
+Sharp Spark (**max 8**), Rapid Fire (**max 8**), Sneaker Boost (**max 6**, move trails), Hoodie Padding (max HP **cap 200**), Gem Magnet, Multishot (**max 8**, gold/yellow sparks), Pierce Shot (**max 6**), Snack Break (heal), **Orbit Guard** (**max 10**), **Orbiting Fairy** (max level **8** / up to **5** on screen, gold auras L6–8), **Pulse Laser** (L1–10), **Omni Beam** (8/12-way burst — **only after Laser 6**), **Barrier Shield** (**+50 shield** each pick, absorb before HP, **cap 200**, additive).
 
-Maxed skills still appear as **dimmed / unclickable** cards; the pool prefers available upgrades first. Level-up panel + in-run **HUD chips** (left side) show current weapon/skill levels (incl. Shield).
+Maxed skills still appear as **dimmed / unclickable** cards; the pool prefers available upgrades first. Level-up cards + in-run **HUD chips** (left side) show an **icon** plus current weapon/skill levels (incl. Shield).
 
-### XP gems
+### XP gems (hardcoded totals)
 
-| Tier | Color | Source | Notes |
-|------|-------|--------|-------|
-| Blue | cyan | Normal slimes | +10% vs prior normal XP |
-| Purple | violet | King / elites | Larger pickup, ~2–3× a blue |
-| Gold ×3 | gold | Pink-Mint Monarch | Biggest dump (~150 XP total) |
-| Gold ×5 | gold | Big King Slimes | Largest dump (Survival Kings) |
+| Tier | Color | Source | Total XP |
+|------|-------|--------|----------|
+| Blue | cyan | Normal mint/pink/yellow | **2** |
+| Blue | cyan | Purple-tinted normal | **3** |
+| Purple | violet | Elite King slime | **26** |
+| Gold ×3 | gold | Pink-Mint Monarch | **150** (3×50) |
+| Gold ×5 | gold | Frostmint Regent | **350** (5×70) |
+| Gold ×5 | gold | Crown Jelly Sovereign | **425** (5×85) |
+| Gold ×5 | gold | Amber Colossus King | **500** (5×100) |
 
 ### Rankings
 
@@ -64,14 +67,21 @@ Scoring:
 - **Survival:** `time×5 + kills×12 + lv×20`
 - **Timed:** `kills×10 + time×2 + lv×25`
 
-## What’s new in v1.1 (redo)
+## What’s new in v1.1
 
-- Survival difficulty **68% → +1%/min → 140%**; starting mob spawn rate is **68%** of normal.
-- Survival **Big Kings** at **5:00 / 10:00 / 15:00** (Frostmint → Crown Jelly → Amber). Same HP×2 / size rules. **Defeating Amber = WIN** (victory screen + victorious SFX jingle).
+- Survival difficulty **68% → +2.5%/min → 200%**; spawn-rate scale shares that curve (starts **68%**).
+- Each minute: normal + elite mobs gain **+1% speed and +1% damage** (stacking, separate from difficulty).
+- Survival **Big Kings** every **4 minutes from 4:00** (Frostmint → Crown Jelly → Amber, then next sets). Later sets **+1/3 HP & speed** vs prior set (×4/3 per set). **Defeating Amber = WIN**.
+- Elite purple slime first eligible after **60s**.
+- Camera zoomed **out ~20%** (portrait/landscape ×0.8).
+- Pink-Mint Monarch size **−20%**; **off-screen location arrow** when Monarch is outside the view.
+- XP gem totals hardcoded (2 / 3 / 26 / 150 / 350 / 425 / 500).
+- Sneaker Boost max **6**; Multishot stays gold/yellow sparks (no blue fireball).
+- Level-up cards + HUD chips show **skill icons**.
 - New skill: **Barrier Shield** (+50 absorb shield, additive, cap 200; HUD bar + chip + cyan ring).
 - **Global rankings** fresh boards (gameId 18/19); side-by-side Survival / Timed.
-- Monarchs: **2 every 3 minutes**, size **+50%**; Nightfall BGM while any Monarch alive; **Throne Breakers** while a King is alive.
-- Cap raises: Sharp Spark / Rapid Fire / Multishot / Sneaker **8**; Orbit Guard **10**; Pulse Laser **10**; Fairy level **8**.
+- Monarchs: **2 every 3 minutes**; Nightfall BGM while any Monarch alive; **Throne Breakers** while a King is alive.
+- Cap raises: Sharp Spark / Rapid Fire / Multishot **8**; Sneaker **6**; Orbit Guard **10**; Pulse Laser **10**; Fairy level **8**.
 - Timed win-at-6:00 unchanged.
 
 ## What’s new in v1.0 (rebuild)

@@ -3,11 +3,11 @@
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
- * Mid-run Pink-Mint Monarch×2 every 3m; Survival Big Kings at 5/10/15.
- * Portrait/landscape world zoom, infinite meadow, Survival + Timed modes.
+ * Mid-run Pink-Mint Monarch×2 every 3m; Survival Big Kings every 4m from 4:00.
+ * Portrait/landscape world zoom (~0.8×), infinite meadow, Survival + Timed.
  * Orbit Guard (10), Pulse Laser L1–10, Omni (after Laser 6), Fairy (5 / L8).
- * Wipe skill, Barrier Shield, XP gem tiers, HP regen, HUD run chips.
- * Multishot/Sharp/Rapid/Sneaker max 8; Pierce 6; HP 200; Survival 68%→140%.
+ * Wipe skill, Barrier Shield, XP gem tiers, HP regen, HUD run chips + icons.
+ * Multishot/Sharp/Rapid max 8; Sneaker 6; Pierce 6; HP 200; Survival 68%→200%.
  * Survival win on Amber Colossus; global rankings (fresh gameIds 18/19).
  */
 (() => {
@@ -24,12 +24,13 @@
   const VERSION = 'v1.1';
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
-  const MONARCH_SIZE_MUL = 1.5; // +50% vs v1.0 rebuild (r 72→108, frames 96→144)
+  const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
   const VIEW_H_MIN = 270;
   const VIEW_H_MAX = 1200;
   // World→screen zoom (mutable; recomputed on resize/orientation). UI stays CSS-sized.
-  const VIEW_ZOOM_PORTRAIT = 1.55;
-  const VIEW_ZOOM_LANDSCAPE = 1.05;
+  // Zoomed out ~20% vs prior (effective ×0.8) so more meadow is visible.
+  const VIEW_ZOOM_PORTRAIT = 1.24; // was 1.55 × 0.8
+  const VIEW_ZOOM_LANDSCAPE = 0.84; // was 1.05 × 0.8
   let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
   const MULTISHOT_MAX = 8;
   const PIERCE_MAX = 6;
@@ -42,17 +43,29 @@
   const ORBIT_MAX = 10; // orb count cap (first pick grants 2)
   const DMG_MAX = 8;
   const RATE_MAX = 8;
-  const SPD_MAX = 8; // Sneaker Boost
+  const SPD_MAX = 6; // Sneaker Boost
   const MAX_HP_CAP = 200;
   const HP_REGEN_INTERVAL = 2; // +1 HP every 2s while PLAYING
   const WIPE_COOLDOWN = 120;
-  // Survival difficulty: 68% baseline at t=0, +1%/min, max 140%.
+  // Survival difficulty: 68% baseline at t=0, +2.5%/min, max 200%.
   // Spawn interval uses this same scale, so initial mob spawn rate is 68%.
   const SURVIVAL_DIFF_START = 0.68;
-  const SURVIVAL_DIFF_RAMP = 0.01;
-  const SURVIVAL_DIFF_MAX = 1.40;
-  // Big King Slimes (Survival): 5:00 / 10:00 / 15:00. Amber kill = win.
-  const KING_SPAWN_TIMES = [300, 600, 900]; // 5:00, 10:00, 15:00
+  const SURVIVAL_DIFF_RAMP = 0.025;
+  const SURVIVAL_DIFF_MAX = 2.0;
+  // Big King Slimes (Survival): every 4 min from 4:00. Amber kill = win.
+  // Cycle Frostmint → Crown Jelly → Amber; later sets ×4/3 HP & speed.
+  const KING_SPAWN_START = 240; // 4:00
+  const KING_SPAWN_INTERVAL = 240; // every 4 minutes
+  const KING_SET_SCALE = 4 / 3; // +1/3 HP & speed per completed trio
+  const ELITE_SPAWN_MIN_T = 60; // elite purple first eligible after 60s
+  // Hardcoded XP gem totals (final drop amounts).
+  const XP_BLUE_NORMAL = 2;
+  const XP_BLUE_PURPLE_TINT = 3; // purple-colored normal slime
+  const XP_ELITE_PURPLE = 26;
+  const XP_MONARCH_EACH = 50; // ×3 gold = 150
+  const XP_MONARCH_COUNT = 3;
+  const XP_KING = { frost: 70, crown: 85, amber: 100 }; // ×5 gold = 350 / 425 / 500
+  const XP_KING_COUNT = 5;
   const SHIELD_PER_PICK = 50;
   const SHIELD_CAP = 200;
   const KING_DEFS = [
@@ -1577,7 +1590,8 @@
   let flashHurt = 0;
   let menuPulse = 0;
   let nextMonarchAt = MONARCH_INTERVAL; // first wave at 3:00
-  let nextKingIndex = 0; // Survival Big Kings 0..2
+  let nextKingIndex = 0; // Survival Big King ordinal (cycles types)
+  let nextKingAt = KING_SPAWN_START; // first King at 4:00
   let moveTrails = []; // Sneaker Boost visual trails
   let playMode = localStorage.getItem('slimeBarrageMode') === 'survival' ? 'survival' : 'timed';
   let lasers = []; // active beam visuals {x,y,ang,life,damage,hit,gold,omni}
@@ -1586,6 +1600,16 @@
   let playerName = '';
   try { playerName = localStorage.getItem('slimeBarragePlayerName') || ''; } catch (_) {}
 
+
+  const SKILL_ICONS = {
+    dmg: '⚡', rate: '🔥', spd: '👟', hp: '❤', magnet: '🧲',
+    multi: '✦', pierce: '➤', heal: '🍪', orbit: '🌀', laser: '▬',
+    omni: '✺', fairy: '🧚', barrier: '🛡',
+  };
+  const CHIP_ICONS = {
+    Multi: '✦', Pierce: '➤', Laser: '▬', Orbit: '🌀', Omni: '✺',
+    Fairy: '🧚', Spark: '⚡', Rapid: '🔥', Sneak: '👟', HP: '❤', Shield: '🛡',
+  };
 
   const UPGRADE_DEFS = [
     { id: 'dmg', name: 'Sharp Spark', desc: '+25% projectile damage (max 8)', apply: p => {
@@ -1598,7 +1622,7 @@
       p.rateLevel = (p.rateLevel || 0) + 1;
       p.fireCdMax = Math.max(0.12, p.fireCdMax * 0.8);
     } },
-    { id: 'spd', name: 'Sneaker Boost', desc: '+15% move speed (max 8)', apply: p => {
+    { id: 'spd', name: 'Sneaker Boost', desc: '+15% move speed (max 6)', apply: p => {
       if ((p.spdLevel || 0) >= SPD_MAX) return;
       p.spdLevel = (p.spdLevel || 0) + 1;
       p.speed *= 1.15;
@@ -1610,7 +1634,7 @@
       p.hp = Math.min(p.maxHp, p.hp + add);
     } },
     { id: 'magnet', name: 'Gem Magnet', desc: '+40% pickup range', apply: p => { p.magnet *= 1.4; } },
-    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 8 · blue fireballs)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
+    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 8 · gold sparks)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
     { id: 'pierce', name: 'Pierce Shot', desc: 'Projectiles pierce +1 (max 6)', apply: p => { p.pierce = Math.min(PIERCE_MAX, p.pierce + 1); } },
     { id: 'heal', name: 'Snack Break', desc: 'Restore 40 HP', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
     { id: 'orbit', name: 'Orbit Guard', desc: 'Shield orbs spin & smash (max 10)', apply: p => {
@@ -1660,13 +1684,18 @@
     return Math.max(0.75, 2.0 - (cadenceLv - 1) * 0.25);
   }
 
-  /** Survival difficulty multiplier: 68% at t=0 → +1%/min → max 140%. */
+  /** Survival difficulty multiplier: 68% at t=0 → +2.5%/min → max 200%. */
   function survivalDiffMul() {
     const mins = Math.floor(timeAlive / 60);
     return Math.min(SURVIVAL_DIFF_MAX, SURVIVAL_DIFF_START + mins * SURVIVAL_DIFF_RAMP);
   }
 
-  /** Mob chase-speed multiplier vs baseline. */
+  /** Per-minute stack for normal + elite mobs: +1% speed & damage each minute. */
+  function minuteStackMul() {
+    return 1 + Math.floor(timeAlive / 60) * 0.01;
+  }
+
+  /** Mob chase-speed multiplier vs baseline (difficulty scale only). */
   function mobSpeedMul() {
     if (playMode === 'survival') return survivalDiffMul();
     // Timed: mild 90%→110% over the 6:00 window
@@ -1868,6 +1897,7 @@
     flashHurt = 0;
     nextMonarchAt = MONARCH_INTERVAL;
     nextKingIndex = 0;
+    nextKingAt = KING_SPAWN_START;
     moveTrails = [];
     wipeCd = WIPE_COOLDOWN; // not ready at run start — full 120s CD first
     propChunkCX = null;
@@ -1897,6 +1927,7 @@
     AudioFX.stopBgm(true);
     nextMonarchAt = MONARCH_INTERVAL;
     nextKingIndex = 0;
+    nextKingAt = KING_SPAWN_START;
     moveTrails = [];
     resetStick();
     state = 'MENU';
@@ -1958,7 +1989,7 @@
 
   // ---------- Spawning ----------
   function difficultyScale() {
-    // Survival: 68% → +1%/min → max 140%. Timed: mild classic curve.
+    // Survival: 68% → +2.5%/min → max 200%. Timed: mild classic curve.
     if (playMode === 'survival') return survivalDiffMul();
     return 1 + timeAlive / 420;
   }
@@ -1970,7 +2001,7 @@
     const eliteChance = playMode === 'survival'
       ? 0.06 + Math.min(0.14, t / 420)
       : 0.06 + Math.min(0.08, t / 600);
-    const isKing = t > 45 && Math.random() < eliteChance;
+    const isKing = t > ELITE_SPAWN_MIN_T && Math.random() < eliteChance;
     const color = isKing ? 'king' : colors[(Math.random() * colors.length) | 0];
     const ang = Math.random() * Math.PI * 2;
     const dist = far ? 220 + Math.random() * 180 : 280 + Math.random() * 220;
@@ -1988,6 +2019,7 @@
     const baseSpd = (isKing ? 38 : 48 + Math.min(40, t * 0.15)) * (1 + (scale - 1) * 0.35);
     const dmg = (isKing ? 18 : 8 + Math.min(10, t * 0.04)) * (1 + (scale - 1) * 0.45);
     const spd = baseSpd + Math.random() * 10;
+    const stack = minuteStackMul();
 
     enemies.push({
       x, y,
@@ -1995,11 +2027,12 @@
       color,
       hp: baseHp, maxHp: baseHp,
       baseSpeed: spd,
-      speed: spd * mobSpeedMul(),
+      speed: spd * mobSpeedMul() * stack,
       damage: dmg,
+      baseDamage: dmg,
       frame: (Math.random() * 4) | 0,
       frameT: Math.random(),
-      xp: isKing ? 12 : 2 + (color === 'purple' ? 1 : 0),
+      xp: isKing ? XP_ELITE_PURPLE : (color === 'purple' ? XP_BLUE_PURPLE_TINT : XP_BLUE_NORMAL),
       isKing,
     });
   }
@@ -2032,6 +2065,7 @@
       baseSpeed: bossSpd,
       speed: bossSpd * mobSpeedMul(),
       damage: 34,
+      baseDamage: 34,
       frame: 0,
       frameT: 0,
       xp: 55,
@@ -2052,10 +2086,13 @@
     syncBossBgm(true);
   }
 
-  /** Survival Big King Slime by index 0..2. HP doubles each King. */
-  function spawnKingBoss(index) {
-    const def = KING_DEFS[index];
+  /** Survival Big King by ordinal. Type cycles frost→crown→amber; set N gets ×(4/3)^N. */
+  function spawnKingBoss(ordinal) {
+    const typeIndex = ordinal % KING_DEFS.length;
+    const setIndex = Math.floor(ordinal / KING_DEFS.length);
+    const def = KING_DEFS[typeIndex];
     if (!def) return;
+    const setMul = Math.pow(KING_SET_SCALE, setIndex);
     const ang = Math.random() * Math.PI * 2;
     const dist = 320 + Math.random() * 100;
     let x = player.x + Math.cos(ang) * dist;
@@ -2068,10 +2105,10 @@
       y = player.y + Math.sin(a2) * d2;
     }
     const scale = difficultyScale();
-    // First King clearly tougher than Monarch (×10 formula); each next King ×2 HP.
+    // First King clearly tougher than Monarch (×10 formula); each next type in a set ×2 HP.
     const base = (8000 + timeAlive * 6) * 12 * (playMode === 'survival' ? scale : 1);
-    const hp = base * Math.pow(2, index);
-    const bossSpd = 22 + index * 2 + Math.random() * 3;
+    const hp = base * Math.pow(2, typeIndex) * setMul;
+    const bossSpd = (22 + typeIndex * 2 + Math.random() * 3) * setMul;
     enemies.push({
       x, y,
       r: def.r,
@@ -2079,15 +2116,18 @@
       hp, maxHp: hp,
       baseSpeed: bossSpd,
       speed: bossSpd * mobSpeedMul(),
-      damage: 40 + index * 8,
+      damage: 40 + typeIndex * 8,
+      baseDamage: 40 + typeIndex * 8,
       frame: 0,
       frameT: 0,
-      xp: 120 + index * 40,
+      xp: 120 + typeIndex * 40,
       isKing: false,
       isBoss: true,
       bossKind: 'king',
       kingId: def.id,
       bossName: def.name,
+      kingOrdinal: ordinal,
+      kingSet: setIndex,
     });
     addParticles(x, y, '#ffe8a0', 28);
     addParticles(x, y - 30, '#e8c84a', 16);
@@ -2100,9 +2140,10 @@
       nextMonarchAt += MONARCH_INTERVAL;
     }
     if (playMode === 'survival') {
-      while (nextKingIndex < KING_SPAWN_TIMES.length && timeAlive >= KING_SPAWN_TIMES[nextKingIndex]) {
+      while (timeAlive >= nextKingAt) {
         spawnKingBoss(nextKingIndex);
         nextKingIndex++;
+        nextKingAt += KING_SPAWN_INTERVAL;
       }
     }
   }
@@ -2145,7 +2186,7 @@
         damage: player.damage,
         pierce: player.pierce,
         hit: new Set(),
-        blueFire: maxedMulti,
+        blueFire: false, // always gold/yellow sparks (no max-multishot blue fireball)
         r: maxedMulti ? 6 : 4,
       });
     }
@@ -2161,33 +2202,29 @@
     });
   }
 
-  /** XP gem tiers: blue (+10% normals), purple (elites), gold×3 (Monarch), gold×5 (Big King). */
+  /** XP gem tiers (hardcoded totals): blue 2/3, elite purple 26, Monarch 150, Kings 350/425/500. */
   function dropGemsForEnemy(e) {
     if (e.isBoss && e.bossKind === 'king') {
-      const each = 70 + (e.kingId === 'amber' ? 30 : (e.kingId === 'crown' ? 15 : 0));
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2 + Math.random() * 0.4;
+      const each = XP_KING[e.kingId] || XP_KING.frost;
+      for (let i = 0; i < XP_KING_COUNT; i++) {
+        const a = (i / XP_KING_COUNT) * Math.PI * 2 + Math.random() * 0.4;
         dropGem(e.x + Math.cos(a) * 22, e.y + Math.sin(a) * 16, each, 'gold');
       }
       return;
     }
     if (e.isBoss) {
-      // Triple gold — Monarch dump (~50 each = 150 total).
-      const each = 50;
-      for (let i = 0; i < 3; i++) {
-        const a = (i / 3) * Math.PI * 2 + Math.random() * 0.4;
-        dropGem(e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 14, each, 'gold');
+      // Triple gold — Monarch dump (50 × 3 = 150 total).
+      for (let i = 0; i < XP_MONARCH_COUNT; i++) {
+        const a = (i / XP_MONARCH_COUNT) * Math.PI * 2 + Math.random() * 0.4;
+        dropGem(e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 14, XP_MONARCH_EACH, 'gold');
       }
       return;
     }
     if (e.isKing) {
-      // Purple: ~2.5× a blue of similar tier (blue≈2–3 → purple≈22–30).
-      const val = Math.max(22, Math.round((e.xp || 12) * 2.2));
-      dropGem(e.x, e.y, val, 'purple');
+      dropGem(e.x, e.y, XP_ELITE_PURPLE, 'purple');
       return;
     }
-    const base = e.xp || 2;
-    const val = Math.max(2, Math.round(base * 1.1));
+    const val = (e.color === 'purple') ? XP_BLUE_PURPLE_TINT : XP_BLUE_NORMAL;
     dropGem(e.x, e.y, val, 'blue');
   }
 
@@ -2235,10 +2272,12 @@
   }
 
   function buildChipHtml(label, cur, max, locked) {
-    if (locked) return '<span class="lvl-chip locked">' + label + ' 🔒</span>';
+    const icon = CHIP_ICONS[label] || '•';
+    const iconHtml = '<span class="chip-icon" aria-hidden="true">' + icon + '</span>';
+    if (locked) return '<span class="lvl-chip locked">' + iconHtml + label + ' 🔒</span>';
     const maxed = max != null && cur >= max;
     const txt = max != null ? (label + ' ' + cur + '/' + max) : (label + ' ' + cur);
-    return '<span class="lvl-chip' + (maxed ? ' maxed' : '') + (cur > 0 ? ' on' : '') + '">' + txt + '</span>';
+    return '<span class="lvl-chip' + (maxed ? ' maxed' : '') + (cur > 0 ? ' on' : '') + '">' + iconHtml + txt + '</span>';
   }
 
   function chipsHtml() {
@@ -2302,7 +2341,9 @@
         + (u.special ? ' card-special' : '')
         + (choice.maxed ? ' card-maxed' : '');
       card.disabled = !!choice.maxed;
+      const icon = SKILL_ICONS[u.id] || '•';
       card.innerHTML =
+        '<span class="card-icon" aria-hidden="true">' + icon + '</span>' +
         '<span class="card-num">' + (i + 1) + (u.special ? ' ★' : '') + (choice.maxed ? ' MAX' : '') + '</span>' +
         '<span class="card-name">' + u.name + '</span>' +
         '<span class="card-desc">' + (choice.maxed ? 'Already maxed' : u.desc) + '</span>';
@@ -3025,8 +3066,10 @@
 
       const dx = player.x - e.x, dy = player.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
-      const spd = (e.baseSpeed != null ? e.baseSpeed : e.speed) * mobSpeedMul();
+      const stack = e.isBoss ? 1 : minuteStackMul();
+      const spd = (e.baseSpeed != null ? e.baseSpeed : e.speed) * mobSpeedMul() * stack;
       e.speed = spd;
+      e.damage = (e.baseDamage != null ? e.baseDamage : e.damage) * (e.isBoss ? 1 : stack);
       e.x += (dx / d) * spd * dt;
       e.y += (dy / d) * spd * dt;
       resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
@@ -3445,7 +3488,56 @@
     ctx.globalAlpha = 1;
   }
 
+  /** Small edge-of-view arrows pointing at off-screen Pink-Mint Monarchs. */
+  function drawMonarchIndicators() {
+    const margin = 14;
+    const vw = W, vh = H;
+    for (const e of enemies) {
+      if (!e.isBoss || e.bossKind !== 'monarch') continue;
+      const s = worldToScreen(e.x, e.y);
+      const onScreen = s.x >= -e.r && s.x <= vw + e.r && s.y >= -e.r && s.y <= vh + e.r;
+      if (onScreen) continue;
+      const cx = vw / 2, cy = vh / 2;
+      const dx = s.x - cx, dy = s.y - cy;
+      const ang = Math.atan2(dy, dx);
+      // Clamp to inset rectangle edge
+      const lx = vw / 2 - margin, ly = vh / 2 - margin;
+      const tanA = Math.tan(ang);
+      let ax, ay;
+      if (Math.abs(dx) * ly > Math.abs(dy) * lx) {
+        ax = cx + Math.sign(dx || 1) * lx;
+        ay = cy + Math.sign(dx || 1) * lx * tanA;
+      } else {
+        ay = cy + Math.sign(dy || 1) * ly;
+        ax = cx + Math.sign(dy || 1) * ly / (tanA || 1e-6);
+      }
+      ax = Math.max(margin, Math.min(vw - margin, ax));
+      ay = Math.max(margin, Math.min(vh - margin, ay));
+      ctx.save();
+      ctx.translate(ax, ay);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(10, 0);
+      ctx.lineTo(-6, 7);
+      ctx.lineTo(-3, 0);
+      ctx.lineTo(-6, -7);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(245, 160, 192, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(232, 200, 74, 0.95)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // tiny mint tip
+      ctx.beginPath();
+      ctx.arc(10, 0, 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = '#7dcea0';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   function drawMenuBackdrop() {
+
     ctx.fillStyle = '#0c121c';
     ctx.fillRect(0, 0, W, H);
     const cols = ['mint', 'pink', 'yellow', 'purple'];
@@ -3485,6 +3577,7 @@
         drawProjectiles(); // sparks pass through foliage; drawn above for readability
         drawParticles();
         drawDmgNums();
+        drawMonarchIndicators();
         if (flashHurt > 0) {
           ctx.fillStyle = `rgba(180,20,60,${flashHurt * 0.45})`;
           ctx.fillRect(0, 0, W, H);
@@ -3522,11 +3615,14 @@
     get VERSION() { return VERSION; },
     get VIEW_ZOOM() { return VIEW_ZOOM; },
     get playMode() { return playMode; },
-    BOSS_SPAWN_AT,
+    MONARCH_INTERVAL,
+    KING_SPAWN_START,
+    KING_SPAWN_INTERVAL,
     WIN_TIME_TIMED,
-    KING_SPAWN_TIMES,
     SURVIVAL_DIFF_START,
+    SURVIVAL_DIFF_RAMP,
     SURVIVAL_DIFF_MAX,
+    SPD_MAX,
     SHIELD_CAP,
     ONLINE_LB,
     MULTISHOT_MAX,
@@ -3551,9 +3647,15 @@
         frame: 0, frameT: 0, xp: 12, isKing: true,
       });
       timeAlive = sec;
-      if (sec >= BOSS_SPAWN_AT && !bossSpawned) {
-        bossSpawned = true;
+      if (sec >= MONARCH_INTERVAL) {
         spawnMonarchBoss();
+        nextMonarchAt = Math.floor(sec / MONARCH_INTERVAL) * MONARCH_INTERVAL + MONARCH_INTERVAL;
+      }
+      if (playMode === 'survival' && sec >= KING_SPAWN_START) {
+        const n = Math.floor((sec - KING_SPAWN_START) / KING_SPAWN_INTERVAL) + 1;
+        nextKingIndex = n;
+        nextKingAt = KING_SPAWN_START + n * KING_SPAWN_INTERVAL;
+        for (let k = 0; k < Math.min(n, 3); k++) spawnKingBoss(k);
       }
       player.level = 3;
       player.xp = 4;
