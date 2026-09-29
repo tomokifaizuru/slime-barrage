@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v1.17
+ * Slime Barrage v1.18
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
@@ -23,7 +23,7 @@
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v1.17';
+  const VERSION = 'v1.18';
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
@@ -31,9 +31,10 @@
   const MONARCH_BLAST_INTERVAL = 5; // seconds between shots per Monarch
   const KING_BLAST_INTERVAL = 5; // seconds between shots per Big King
   const MONARCH_BLAST_DAMAGE = 10;
-  const KING_BLAST_DAMAGE = 12;
+  const KING_BLAST_DAMAGE = 35; // v1.18: was 12
   const BOSS_BLAST_SPEED = 95; // slow big orb
-  const BOSS_BLAST_RADIUS = 22; // large readable blast
+  const BOSS_BLAST_RADIUS = 22; // Monarch blast (large readable orb)
+  const KING_BLAST_RADIUS = 11; // v1.18: Big King blast half size (was 22)
   const BOSS_BLAST_LIFE = 12; // failsafe; also culled far from player
   const BOSS_BLAST_PALETTES = {
     monarch: { core: '#f5a0c0', rim: '#7dcea0', hi: '#ffe8f2', coreGlow: 'rgba(245, 160, 192, 0.85)', rimGlow: 'rgba(125, 206, 160, 0.55)' },
@@ -85,6 +86,10 @@
   // Normal + elite spawn rate is 85% of the prior rate; bosses are separate.
   const NORMAL_ELITE_SPAWN_RATE_MUL = 0.85;
   const SURVIVAL_DIFF_MAX = 2.0;
+  // v1.18 late ramp: from 9:00, normal+elite spawn rate +2% per full minute
+  // (additive: 9:00 → ×1.02, 10:00 → ×1.04 …). Mob cap scales by the same factor.
+  const LATE_RAMP_START_T = 540;
+  const LATE_RAMP_PER_MIN = 0.02;
   // Big King Slimes (Survival): every 4 min from 4:00. Amber → Continue?/claim win.
   // Cycle Frostmint → Crown Jelly → Amber; later sets ×4/3 HP & speed.
   const KING_SPAWN_START = 240; // 4:00
@@ -101,6 +106,8 @@
   const XP_KING_COUNT = 5;
   const SHIELD_PER_PICK = 50;
   const SHIELD_CAP = 200;
+  const MAGNET_MAX = 8; // v1.18: Gem Magnet max picks (removed from choices after)
+  const MAGNET_PER_PICK = 0.10; // v1.18: +10% pickup range per pick (was +40%)
   const KING_DEFS = [
     { id: 'frost', color: 'kingFrost', name: 'Frostmint Regent', r: 120, frameSize: 160 },
     { id: 'crown', color: 'kingCrown', name: 'Crown Jelly Sovereign', r: 136, frameSize: 176 },
@@ -1726,7 +1733,11 @@
       p.maxHp += add;
       p.hp = Math.min(p.maxHp, p.hp + add);
     } },
-    { id: 'magnet', name: 'Gem Magnet', desc: '+40% pickup range', apply: p => { p.magnet *= 1.4; } },
+    { id: 'magnet', name: 'Gem Magnet', desc: '+10% pickup range (max 8)', apply: p => {
+      if ((p.magnetLevel || 0) >= MAGNET_MAX) return;
+      p.magnetLevel = (p.magnetLevel || 0) + 1;
+      p.magnet *= 1 + MAGNET_PER_PICK;
+    } },
     { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 8 · gold sparks)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
     { id: 'pierce', name: 'Pierce Shot', desc: 'Projectiles pierce +1 (max 6)', apply: p => { p.pierce = Math.min(PIERCE_MAX, p.pierce + 1); } },
     { id: 'heal', name: 'Snack Break', desc: 'Restore 40 HP', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
@@ -1781,6 +1792,12 @@
   function survivalDiffMul() {
     const minsPastRampStart = Math.max(0, (timeAlive - SURVIVAL_DIFF_RAMP_START_T) / 60);
     return Math.min(SURVIVAL_DIFF_MAX, SURVIVAL_DIFF_START + minsPastRampStart * SURVIVAL_DIFF_RAMP);
+  }
+
+  /** v1.18: late-run spawn multiplier for normal + elite mobs (1 before 9:00). */
+  function lateSpawnMul() {
+    if (timeAlive < LATE_RAMP_START_T) return 1;
+    return 1 + LATE_RAMP_PER_MIN * (Math.floor((timeAlive - LATE_RAMP_START_T) / 60) + 1);
   }
 
   /** Per-minute stack for normal + elite mobs: +1% speed & damage each minute. */
@@ -2325,13 +2342,14 @@
     if (!palette) return;
     const dx = player.x - e.x, dy = player.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
-    const damage = e.bossKind === 'monarch' ? MONARCH_BLAST_DAMAGE : KING_BLAST_DAMAGE;
+    const isMonarch = e.bossKind === 'monarch';
+    const damage = isMonarch ? MONARCH_BLAST_DAMAGE : KING_BLAST_DAMAGE;
     bossBlasts.push({
       x: e.x,
       y: e.y - Math.max(8, e.r * 0.15),
       vx: (dx / d) * BOSS_BLAST_SPEED,
       vy: (dy / d) * BOSS_BLAST_SPEED,
-      r: BOSS_BLAST_RADIUS,
+      r: isMonarch ? BOSS_BLAST_RADIUS : KING_BLAST_RADIUS,
       damage,
       life: BOSS_BLAST_LIFE,
       palette,
@@ -2386,7 +2404,7 @@
       ctx.fill();
       ctx.beginPath();
       ctx.strokeStyle = p.rim;
-      ctx.lineWidth = Math.max(3, R * 0.22);
+      ctx.lineWidth = Math.max(1.5, R * 0.22); // scales with orb (King orbs are half size)
       ctx.arc(s.x, s.y, R * 0.82, 0, Math.PI * 2);
       ctx.stroke();
       // Highlight
@@ -2450,6 +2468,8 @@
   /** Omni stays out of the pool until Pulse Laser reaches L6 (can remain after). */
   function upgradeEligible(u) {
     if (u.id === 'omni' && (player.laserLevel || 0) < OMNI_UNLOCK_LASER) return false;
+    // v1.18: Gem Magnet disappears from level-up choices after 8 picks.
+    if (u.id === 'magnet' && (player.magnetLevel || 0) >= MAGNET_MAX) return false;
     return true;
   }
 
@@ -2467,7 +2487,8 @@
       case 'orbit': return (player.orbitOrbs || 0) >= ORBIT_MAX;
       case 'fairy': return (player.fairyLevel || 0) >= FAIRY_MAX;
       case 'barrier': return (player.shield || 0) >= SHIELD_CAP;
-      default: return false; // uncapped: magnet/heal
+      case 'magnet': return (player.magnetLevel || 0) >= MAGNET_MAX;
+      default: return false; // uncapped: heal
     }
   }
 
@@ -2704,12 +2725,12 @@
 
   function postOnlineScore(mode, name, scoreVal, meta) {
     const cfg = ONLINE_LB[mode];
-    if (!cfg) return;
+    if (!cfg) return Promise.resolve(false);
     const cleanName = sanitizeLbName(name);
     const sc = parseInt(scoreVal, 10) || 0;
-    if (sc <= 0) return;
+    if (sc <= 0) return Promise.resolve(false);
     try {
-      fetch(ONLINE_LB_BASE + '/api/v1/scores', {
+      return fetch(ONLINE_LB_BASE + '/api/v1/scores', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2726,8 +2747,11 @@
             version: VERSION,
           },
         }),
-      }).catch(function () { /* offline */ });
-    } catch (_) {}
+      }).then(function (res) {
+        if (!res.ok) throw new Error('submit ' + res.status);
+        return true;
+      }).catch(function () { return false; /* offline */ });
+    } catch (_) { return Promise.resolve(false); }
   }
 
   function mapOnlineEntries(entries) {
@@ -2813,10 +2837,17 @@
     }
     board.sort((a, b) => b.score - a.score || (b.time || 0) - (a.time || 0));
     saveBoard(mode, board);
-    if (improved) postOnlineScore(mode, name, score, meta);
-    else postOnlineScore(mode, name, score, meta); // still try online (server keeps best)
-    const rank = board.findIndex(e => (e.name || '').toLowerCase() === lower) + 1;
-    return { name, score, rank: rank > 0 ? rank : board.length, improved };
+    // v1.18: always submit to the live global board; rank shown is the GLOBAL rank.
+    const online = postOnlineScore(mode, name, score, meta).then(function (ok) {
+      if (!ok) return { ok: false };
+      return fetchOnlineBoard(mode, 100).then(function (gb) {
+        saveBoard(mode, gb);
+        // Server keeps each player's best; rank = that player's global position.
+        const i = gb.findIndex(e => (e.name || '').toLowerCase() === lower);
+        return { ok: true, rank: i >= 0 ? i + 1 : 0, best: i >= 0 ? gb[i].score : 0 };
+      }).catch(function () { return { ok: true, rank: 0 }; });
+    });
+    return { name, score, improved, online };
   }
 
   function renderRankList(elList, mode, boardOpt) {
@@ -2855,13 +2886,15 @@
       if (gen !== syncOnlineRanks._gen) return;
       const survOk = !surv || !surv.__err;
       const timedOk = !timed || !timed.__err;
-      const survMerged = mergeBoards(loadBoard('survival'), survOk ? surv : []);
-      const timedMerged = mergeBoards(loadBoard('timed'), timedOk ? timed : []);
+      // v1.18: when online, the global server board is shown as-is (no local
+      // entries mixed in); the local cache is only an offline fallback.
+      const survMerged = survOk ? mergeBoards([], surv) : loadBoard('survival');
+      const timedMerged = timedOk ? mergeBoards([], timed) : loadBoard('timed');
       if (survOk) saveBoard('survival', survMerged);
       if (timedOk) saveBoard('timed', timedMerged);
       refreshRanksUI({ survival: survMerged, timed: timedMerged });
       if (survOk && timedOk) setRankStatus('Online \u00b7 global synced (Survival #' + ONLINE_LB.survival.gameId + ' / Timed #' + ONLINE_LB.timed.gameId + ')', 'online');
-      else if (!survOk && !timedOk) setRankStatus('Offline \u00b7 local fresh cache only', 'offline');
+      else if (!survOk && !timedOk) setRankStatus('Offline \u00b7 showing last cached global board', 'offline');
       else setRankStatus('Partial sync \u00b7 some boards offline', 'error');
     });
   }
@@ -2946,11 +2979,25 @@
       '<div>Kills  ' + killCount + '</div>' +
       '<div>Level  ' + player.level + '</div>' +
       '<div class="score">Score  ' + score + '</div>' +
-      '<div class="rank-submit">Rank #' + submitted.rank + ' \u00b7 ' + escapeHtml(submitted.name) + '</div>' +
+      '<div class="rank-submit" id="endRankLine">Submitting to global board\u2026 \u00b7 ' + escapeHtml(submitted.name) + '</div>' +
       '<div class="rank-formula">' + formula + ' \u00b7 global board</div>';
     if (el.endRankNote) {
-      el.endRankNote.textContent = 'Submitted to global ' + modeLabel + ' ranks (top 10). Fresh board \u2014 old local scores cleared.';
+      el.endRankNote.textContent = 'Submitting to global ' + modeLabel + ' ranks\u2026';
     }
+    const endGen = (showEnd._gen = (showEnd._gen || 0) + 1);
+    submitted.online.then(function (r) {
+      if (endGen !== showEnd._gen) return;
+      const line = document.getElementById('endRankLine');
+      const who = ' \u00b7 ' + escapeHtml(submitted.name);
+      if (r && r.ok) {
+        const bestNote = (r.rank > 0 && r.best > submitted.score) ? ' (best ' + r.best + ')' : '';
+        if (line) line.innerHTML = (r.rank > 0 ? 'Global Rank #' + r.rank + bestNote : 'Global rank: outside top 100') + who;
+        if (el.endRankNote) el.endRankNote.textContent = 'Submitted to global ' + modeLabel + ' ranks.';
+      } else {
+        if (line) line.innerHTML = 'Global submit failed (offline)' + who;
+        if (el.endRankNote) el.endRankNote.textContent = 'Could not reach global ' + modeLabel + ' ranks \u2014 check connection.';
+      }
+    });
     showOnly('end');
     syncHud();
   }
@@ -3275,6 +3322,7 @@
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
       const scale = difficultyScale();
+      const lateMul = lateSpawnMul();
       const density = 1 + Math.floor(timeAlive / (playMode === 'survival' ? 14 : 20));
       const n = Math.min(playMode === 'survival' ? 8 : 6, density + (Math.random() * 2) | 0);
       spawnBurst(n);
@@ -3282,10 +3330,11 @@
       const ramp = playMode === 'survival' ? 0.012 : 0.008;
       const interval = Math.max(playMode === 'survival' ? 0.38 : 0.55, baseInt - timeAlive * ramp)
         / Math.min(1.6, scale)
-        / NORMAL_ELITE_SPAWN_RATE_MUL;
+        / NORMAL_ELITE_SPAWN_RATE_MUL
+        / lateMul; // v1.18 late ramp (+2%/min from 9:00)
       spawnTimer = interval;
       cleanupFarEntities();
-      const cap = playMode === 'survival' ? 140 : 120;
+      const cap = Math.round((playMode === 'survival' ? 140 : 120) * lateMul);
       if (enemies.length > cap) {
         // Prefer dropping non-boss fodder so the Monarch is never culled.
         let need = enemies.length - cap;
@@ -3364,7 +3413,8 @@
       e.damage = (e.baseDamage != null ? e.baseDamage : e.damage) * (e.isBoss ? 1 : stack);
       e.x += (dx / d) * spd * dt;
       e.y += (dy / d) * spd * dt;
-      resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
+      // v1.18: Monarchs + Big Kings pass through trees/bushes (same speed).
+      if (!e.isBoss) resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
 
       // Ranged blast timer is independent for every Monarch and Big King.
       if (e.isBoss && (e.bossKind === 'monarch' || e.bossKind === 'king')) {
@@ -3957,6 +4007,24 @@
       syncHud();
     },
     obstacleCount: () => obstacles.length,
+    // v1.18 verification hooks (read-mostly; used by headless checks).
+    v118: {
+      lateSpawnMulAt: (t) => { const sv = timeAlive; timeAlive = t; const m = lateSpawnMul(); timeAlive = sv; return m; },
+      KING_BLAST_DAMAGE, KING_BLAST_RADIUS, MONARCH_BLAST_DAMAGE, BOSS_BLAST_RADIUS, MAGNET_MAX, MAGNET_PER_PICK,
+      applyUpgradeById: (id) => {
+        const u = UPGRADE_DEFS.find(x => x.id === id);
+        if (u && player) u.apply(player);
+        return player ? { magnet: player.magnet, magnetLevel: player.magnetLevel || 0, eligible: upgradeEligible(u), maxed: isUpgradeMaxed(u) } : null;
+      },
+      fireAllBossBlasts: () => { enemies.filter(e => e.isBoss).forEach(fireBossBlast); return bossBlasts.map(b => ({ r: b.r, damage: b.damage })); },
+      bosses: () => enemies.filter(e => e.isBoss).map(e => ({ kind: e.bossKind, id: e.kingId || 'monarch', x: e.x, y: e.y, speed: e.speed })),
+      parkBossesOnObstacles: () => {
+        const bs = enemies.filter(e => e.isBoss);
+        bs.forEach((e, i) => { const o = obstacles[i % obstacles.length]; if (o) { e.x = o.x + 0.5; e.y = o.y + 0.5; } });
+        return bs.map(e => ({ x: e.x, y: e.y }));
+      },
+      nearestObstacleDist: () => enemies.filter(e => e.isBoss).map(e => Math.min(...obstacles.map(o => Math.hypot(e.x - o.x, e.y - o.y)))),
+    },
     showLevelUpDemo: () => {
       if (state !== 'PLAYING') startGame();
       offerLevelUp();

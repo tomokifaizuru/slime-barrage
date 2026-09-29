@@ -1,10 +1,10 @@
-# Slime Barrage v1.17
+# Slime Barrage v1.18
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **defeat the Amber Colossus King** (Survival) or **win Timed at 6:00**.
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.17** — Live **weapon stat column** beside the left HUD chips (damage · shots/s per weapon, stat effects, thin level meter). Cache-bust `?v=1.17`.
+> **v1.18** — Late difficulty ramp from 9:00, Gem Magnet capped at 8 (+10%/pick), live global ranks, smaller/harder King blasts, bosses pass through trees/bushes. Cache-bust `?v=1.18`.
 
 ## How to play
 
@@ -36,16 +36,16 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 
 | Mode | Goal |
 |------|------|
-| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **12:00**, then every set) to **win**. Difficulty holds at **68%** through **1:00**, then ramps **+2.5% per minute** to **200%**; mob spawn rate shares that scale (starts **68%**). Normal + elite spawn at **85%** of the prior rate. Each minute normal+elite gain **+1% speed & damage**. HUD shows time survived. |
+| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **12:00**, then every set) to **win**. Difficulty holds at **68%** through **1:00**, then ramps **+2.5% per minute** to **200%**; mob spawn rate shares that scale (starts **68%**). Normal + elite spawn at **85%** of the prior rate. Each minute normal+elite gain **+1% speed & damage**. From **9:00**, normal+elite spawn rate gains **+2% per full minute** (additive; mob cap scales too). HUD shows time survived. |
 | **Timed** | Survive **6:00** to win. Milder difficulty curve. |
 
 Last mode is remembered in `localStorage`.
 
 ### Upgrades (pick 1 of 3 on level up)
 
-Sharp Spark (**max 8**), Rapid Fire (**max 8**), Sneaker Boost (**max 6**, move trails), Hoodie Padding (max HP **cap 200**), Gem Magnet, Multishot (**max 8**, gold/yellow sparks), Pierce Shot (**max 6**), Snack Break (heal), **Orbit Guard** (**max 10**), **Orbiting Fairy** (max level **8** / up to **5** on screen, gold auras L6–8), **Pulse Laser** (L1–10), **Omni Beam** (8/12-way burst — **only after Laser 6**), **Barrier Shield** (**+50 shield** each pick, absorb before HP, **cap 200**, additive).
+Sharp Spark (**max 8**), Rapid Fire (**max 8**), Sneaker Boost (**max 6**, move trails), Hoodie Padding (max HP **cap 200**), Gem Magnet (**+10% pickup range**, **max 8** — then leaves the pool), Multishot (**max 8**, gold/yellow sparks), Pierce Shot (**max 6**), Snack Break (heal), **Orbit Guard** (**max 10**), **Orbiting Fairy** (max level **8** / up to **5** on screen, gold auras L6–8), **Pulse Laser** (L1–10), **Omni Beam** (8/12-way burst — **only after Laser 6**), **Barrier Shield** (**+50 shield** each pick, absorb before HP, **cap 200**, additive).
 
-Maxed skills still appear as **dimmed / unclickable** cards; the pool prefers available upgrades first. Level-up cards + in-run **HUD chips** (left side) show an **icon** plus current weapon/skill levels (incl. Shield).
+Maxed skills still appear as **dimmed / unclickable** cards (except Gem Magnet, which disappears after 8); the pool prefers available upgrades first. Level-up cards + in-run **HUD chips** (left side) show an **icon** plus current weapon/skill levels (incl. Shield).
 
 ### XP gems (hardcoded totals)
 
@@ -67,6 +67,15 @@ Scoring:
 
 - **Survival:** `time×5 + kills×12 + lv×20`
 - **Timed:** `kills×10 + time×2 + lv×25`
+
+## What’s new in v1.18
+
+- **Late difficulty ramp:** from **9:00** (t ≥ 540s) normal + elite spawn rate ×`1 + 0.02 × (floor((t−540)/60) + 1)` → 9:00 ×1.02, 10:00 ×1.04, … (additive). Enemy cap (Survival 140 / Timed 120) scales by the same factor so it doesn't block the increase. Other ramps unchanged.
+- **Gem Magnet:** **+10%** pickup range per pick (was +40%), **max 8 picks**; removed from level-up choices once maxed.
+- **Global Rank live:** end screen shows your real **Global Rank #** after the score POST succeeds (was a local-cache rank). Rankings panel shows the server board as-is when online (local cache only used offline).
+- **Big King blasts** (Frostmint Regent / Crown Jelly Sovereign / Amber Colossus King): **35 damage** (was 12), orb radius **11** (was 22) — drawn visual halved too. Monarch blast unchanged (10 dmg, radius 22).
+- **Boss pass-through:** Monarchs and Big Kings ignore tree/bush collisions (same speed). Player / normal / elite mobs unchanged.
+- Cache-bust `?v=1.18`.
 
 ## What’s new in v1.17
 
