@@ -4,7 +4,7 @@ A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoo
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.16** — Pink-Mint Monarch fires a slow **pink-mint blast** at the player every **5s** (10 dmg, shield/invuln respected). Cache-bust `?v=1.16`.
+> **v1.16** — Pink-Mint Monarch and Big Kings fire slow skin-colored blasts at the player every **5s** (10/12 dmg, shield/invuln respected). Cache-bust `?v=1.16b`.
 
 ## How to play
 
@@ -70,8 +70,8 @@ Scoring:
 
 ## What’s new in v1.16
 
-- Pink-Mint Monarch **ranged blast**: every **5 seconds** while alive, each Monarch fires a slow **large** pink-mint orb aimed at the player (**10 damage** on hit; Barrier Shield + invuln respected like body hits). Body contact damage (**34**) unchanged. Orbs destroy on hit or when far off-map.
-- Cache-bust `?v=1.16`.
+- Boss **ranged blasts**: every **5 seconds** while alive, each Pink-Mint Monarch fires a slow **large** pink-mint orb, and each Frostmint Regent / Crown Jelly Sovereign / Amber Colossus King fires a slow large orb matching its mint / purple / yellow skin. Monarch orbs deal **10 damage**; Big King orbs deal **12 damage**. Barrier Shield + invuln are respected like body hits; body contact damage is unchanged. Orbs destroy on hit or when far off-map.
+- Cache-bust `?v=1.16b`.
 
 ## What’s new in v1.15
 

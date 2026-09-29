@@ -27,15 +27,20 @@
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
-  // Pink-Mint Monarch ranged blast (extra attack; body contact 34 stays)
+  // Boss ranged blasts (extra attacks; body contact damage stays unchanged).
   const MONARCH_BLAST_INTERVAL = 5; // seconds between shots per Monarch
+  const KING_BLAST_INTERVAL = 5; // seconds between shots per Big King
   const MONARCH_BLAST_DAMAGE = 10;
-  const MONARCH_BLAST_SPEED = 95; // slow big orb
-  const MONARCH_BLAST_RADIUS = 22; // large readable blast
-  const MONARCH_BLAST_LIFE = 12; // failsafe; also culled far from player
-  const MONARCH_BLAST_PINK = '#f5a0c0';
-  const MONARCH_BLAST_MINT = '#7dcea0';
-  const MONARCH_BLAST_HI = '#ffe8f2';
+  const KING_BLAST_DAMAGE = 12;
+  const BOSS_BLAST_SPEED = 95; // slow big orb
+  const BOSS_BLAST_RADIUS = 22; // large readable blast
+  const BOSS_BLAST_LIFE = 12; // failsafe; also culled far from player
+  const BOSS_BLAST_PALETTES = {
+    monarch: { core: '#f5a0c0', rim: '#7dcea0', hi: '#ffe8f2', coreGlow: 'rgba(245, 160, 192, 0.85)', rimGlow: 'rgba(125, 206, 160, 0.55)' },
+    frost:   { core: '#7ef0d4', rim: '#c8ffff', hi: '#e8fff8', coreGlow: 'rgba(126, 240, 212, 0.85)', rimGlow: 'rgba(200, 255, 255, 0.55)' },
+    crown:   { core: '#9a6ad8', rim: '#e0c8ff', hi: '#f6efff', coreGlow: 'rgba(154, 106, 216, 0.85)', rimGlow: 'rgba(224, 200, 255, 0.55)' },
+    amber:   { core: '#f0b840', rim: '#ffe8a0', hi: '#fff8d0', coreGlow: 'rgba(240, 184, 64, 0.85)', rimGlow: 'rgba(255, 232, 160, 0.55)' },
+  };
   const VIEW_H_MIN = 300;
   const VIEW_H_MAX = 1400;
   // World→screen zoom. Landscape FOV baked into BASE_W (VIEW_ZOOM=1).
@@ -1666,7 +1671,7 @@
   // ---------- Game state ----------
   let state = 'MENU';
   let player, enemies, projectiles, gems, particles;
-  let monarchBlasts = []; // Pink-Mint Monarch ranged orbs
+  let bossBlasts = []; // Monarch and Big King ranged orbs
   let dmgNums = [];
   let obstacles = [];
   let cam = { x: 0, y: 0 };
@@ -1976,7 +1981,7 @@
     player = resetPlayer();
     enemies = [];
     projectiles = [];
-    monarchBlasts = [];
+    bossBlasts = [];
     gems = [];
     particles = [];
     dmgNums = [];
@@ -2219,6 +2224,7 @@
       bossName: def.name,
       kingOrdinal: ordinal,
       kingSet: setIndex,
+      blastCd: KING_BLAST_INTERVAL * (0.55 + Math.random() * 0.45), // own timer (~2.75–5s to first shot)
     });
     addParticles(x, y, '#ffe8a0', 28);
     addParticles(x, y - 30, '#e8c84a', 16);
@@ -2313,74 +2319,79 @@
     return false;
   }
 
-  function fireMonarchBlast(e) {
+  function fireBossBlast(e) {
+    const paletteKey = e.bossKind === 'monarch' ? 'monarch' : e.kingId;
+    const palette = BOSS_BLAST_PALETTES[paletteKey];
+    if (!palette) return;
     const dx = player.x - e.x, dy = player.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
-    const spd = MONARCH_BLAST_SPEED;
-    monarchBlasts.push({
+    const damage = e.bossKind === 'monarch' ? MONARCH_BLAST_DAMAGE : KING_BLAST_DAMAGE;
+    bossBlasts.push({
       x: e.x,
       y: e.y - Math.max(8, e.r * 0.15),
-      vx: (dx / d) * spd,
-      vy: (dy / d) * spd,
-      r: MONARCH_BLAST_RADIUS,
-      damage: MONARCH_BLAST_DAMAGE,
-      life: MONARCH_BLAST_LIFE,
+      vx: (dx / d) * BOSS_BLAST_SPEED,
+      vy: (dy / d) * BOSS_BLAST_SPEED,
+      r: BOSS_BLAST_RADIUS,
+      damage,
+      life: BOSS_BLAST_LIFE,
+      palette,
     });
-    addParticles(e.x, e.y - e.r * 0.2, MONARCH_BLAST_PINK, 10);
-    addParticles(e.x, e.y - e.r * 0.2, MONARCH_BLAST_MINT, 6);
+    addParticles(e.x, e.y - e.r * 0.2, palette.core, 10);
+    addParticles(e.x, e.y - e.r * 0.2, palette.rim, 6);
   }
 
-  function updateMonarchBlasts(dt) {
+  function updateBossBlasts(dt) {
     const lim2 = CLEANUP_DIST * CLEANUP_DIST;
-    for (let i = monarchBlasts.length - 1; i >= 0; i--) {
-      const b = monarchBlasts[i];
+    for (let i = bossBlasts.length - 1; i >= 0; i--) {
+      const b = bossBlasts[i];
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
       const pdx = b.x - player.x, pdy = b.y - player.y;
       if (b.life <= 0 || pdx * pdx + pdy * pdy > lim2) {
-        monarchBlasts.splice(i, 1);
+        bossBlasts.splice(i, 1);
         continue;
       }
       const hdx = player.x - b.x, hdy = player.y - b.y;
       if (hdx * hdx + hdy * hdy < (b.r + 8) ** 2) {
-        monarchBlasts.splice(i, 1);
+        bossBlasts.splice(i, 1);
         if (hurtPlayer(b.damage)) return true; // fatal
-        addParticles(b.x, b.y, MONARCH_BLAST_PINK, 12);
-        addParticles(b.x, b.y, MONARCH_BLAST_MINT, 8);
+        addParticles(b.x, b.y, b.palette.core, 12);
+        addParticles(b.x, b.y, b.palette.rim, 8);
       }
     }
     return false;
   }
 
-  function drawMonarchBlasts() {
-    for (const b of monarchBlasts) {
+  function drawBossBlasts() {
+    for (const b of bossBlasts) {
+      const p = b.palette;
       const s = worldToScreen(b.x, b.y);
       const pulse = 1 + Math.sin(animT * 6 + b.x * 0.02) * 0.08;
       const R = b.r * pulse;
-      // Soft mint outer glow
+      // Same large, readable orb treatment for Monarchs and Big Kings.
       const g0 = ctx.createRadialGradient(s.x, s.y, R * 0.15, s.x, s.y, R * 1.35);
-      g0.addColorStop(0, 'rgba(255, 232, 242, 0.95)');
-      g0.addColorStop(0.35, 'rgba(245, 160, 192, 0.85)');
-      g0.addColorStop(0.7, 'rgba(125, 206, 160, 0.55)');
-      g0.addColorStop(1, 'rgba(125, 206, 160, 0)');
+      g0.addColorStop(0, p.hi);
+      g0.addColorStop(0.35, p.coreGlow);
+      g0.addColorStop(0.7, p.rimGlow);
+      g0.addColorStop(1, p.rimGlow.replace('0.55)', '0)'));
       ctx.beginPath();
       ctx.fillStyle = g0;
       ctx.arc(s.x, s.y, R * 1.35, 0, Math.PI * 2);
       ctx.fill();
-      // Solid readable core (pink → mint rim)
+      // Solid readable core with a skin-matched rim.
       ctx.beginPath();
-      ctx.fillStyle = MONARCH_BLAST_PINK;
+      ctx.fillStyle = p.core;
       ctx.arc(s.x, s.y, R * 0.72, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.strokeStyle = MONARCH_BLAST_MINT;
+      ctx.strokeStyle = p.rim;
       ctx.lineWidth = Math.max(3, R * 0.22);
       ctx.arc(s.x, s.y, R * 0.82, 0, Math.PI * 2);
       ctx.stroke();
       // Highlight
       ctx.beginPath();
-      ctx.fillStyle = MONARCH_BLAST_HI;
+      ctx.fillStyle = p.hi;
       ctx.globalAlpha = 0.75;
       ctx.arc(s.x - R * 0.22, s.y - R * 0.25, R * 0.28, 0, Math.PI * 2);
       ctx.fill();
@@ -3095,7 +3106,6 @@
       const dx = e.x - player.x, dy = e.y - player.y;
       if (dx * dx + dy * dy > lim2) enemies.splice(i, 1);
     }
-    if (updateMonarchBlasts(dt)) return;
 
     for (let i = gems.length - 1; i >= 0; i--) {
       const g = gems[i];
@@ -3191,6 +3201,8 @@
     updateOrbitOrbs(dt);
     updateFairies(dt);
     updateHpRegen(dt);
+
+    if (updateBossBlasts(dt)) return;
 
     tickBossSpawns();
 
@@ -3304,12 +3316,13 @@
       e.y += (dy / d) * spd * dt;
       resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
 
-      // Monarch ranged blast timer (independent per boss)
-      if (e.isBoss && e.bossKind === 'monarch') {
-        e.blastCd = (e.blastCd == null ? MONARCH_BLAST_INTERVAL : e.blastCd) - dt;
+      // Ranged blast timer is independent for every Monarch and Big King.
+      if (e.isBoss && (e.bossKind === 'monarch' || e.bossKind === 'king')) {
+        const interval = e.bossKind === 'monarch' ? MONARCH_BLAST_INTERVAL : KING_BLAST_INTERVAL;
+        e.blastCd = (e.blastCd == null ? interval : e.blastCd) - dt;
         if (e.blastCd <= 0) {
-          fireMonarchBlast(e);
-          e.blastCd = MONARCH_BLAST_INTERVAL;
+          fireBossBlast(e);
+          e.blastCd = interval;
         }
       }
 
@@ -3795,7 +3808,7 @@
         drawSortedWorld();
         drawOrbitAndLaser();
         drawProjectiles(); // sparks pass through foliage; drawn above for readability
-        drawMonarchBlasts(); // large pink-mint boss orbs above sparks
+        drawBossBlasts(); // large skin-colored boss orbs above sparks
         drawParticles();
         drawDmgNums();
         drawMonarchIndicators();
