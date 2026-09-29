@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v1.18
+ * Slime Barrage v1.19
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
@@ -23,7 +23,7 @@
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v1.18';
+  const VERSION = 'v1.19';
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
@@ -33,8 +33,7 @@
   const MONARCH_BLAST_DAMAGE = 10;
   const KING_BLAST_DAMAGE = 35; // v1.18: was 12
   const BOSS_BLAST_SPEED = 95; // slow big orb
-  const BOSS_BLAST_RADIUS = 22; // Monarch blast (large readable orb)
-  const KING_BLAST_RADIUS = 11; // v1.18: Big King blast half size (was 22)
+  const BOSS_BLAST_RADIUS = 22; // large readable blast (Monarchs + Big Kings)
   const BOSS_BLAST_LIFE = 12; // failsafe; also culled far from player
   const BOSS_BLAST_PALETTES = {
     monarch: { core: '#f5a0c0', rim: '#7dcea0', hi: '#ffe8f2', coreGlow: 'rgba(245, 160, 192, 0.85)', rimGlow: 'rgba(125, 206, 160, 0.55)' },
@@ -108,10 +107,11 @@
   const SHIELD_CAP = 200;
   const MAGNET_MAX = 8; // v1.18: Gem Magnet max picks (removed from choices after)
   const MAGNET_PER_PICK = 0.10; // v1.18: +10% pickup range per pick (was +40%)
+  // v1.19: Big King bodies halved (sprite + collision). Was r 120/136/152, frames 160/176/192.
   const KING_DEFS = [
-    { id: 'frost', color: 'kingFrost', name: 'Frostmint Regent', r: 120, frameSize: 160 },
-    { id: 'crown', color: 'kingCrown', name: 'Crown Jelly Sovereign', r: 136, frameSize: 176 },
-    { id: 'amber', color: 'kingAmber', name: 'Amber Colossus King', r: 152, frameSize: 192 },
+    { id: 'frost', color: 'kingFrost', name: 'Frostmint Regent', r: 60, frameSize: 80 },
+    { id: 'crown', color: 'kingCrown', name: 'Crown Jelly Sovereign', r: 68, frameSize: 88 },
+    { id: 'amber', color: 'kingAmber', name: 'Amber Colossus King', r: 76, frameSize: 96 },
   ];
   const CLEANUP_DIST = 980;
   const PROP_CHUNK = 360;
@@ -2349,7 +2349,7 @@
       y: e.y - Math.max(8, e.r * 0.15),
       vx: (dx / d) * BOSS_BLAST_SPEED,
       vy: (dy / d) * BOSS_BLAST_SPEED,
-      r: isMonarch ? BOSS_BLAST_RADIUS : KING_BLAST_RADIUS,
+      r: BOSS_BLAST_RADIUS,
       damage,
       life: BOSS_BLAST_LIFE,
       palette,
@@ -2404,7 +2404,7 @@
       ctx.fill();
       ctx.beginPath();
       ctx.strokeStyle = p.rim;
-      ctx.lineWidth = Math.max(1.5, R * 0.22); // scales with orb (King orbs are half size)
+      ctx.lineWidth = Math.max(3, R * 0.22);
       ctx.arc(s.x, s.y, R * 0.82, 0, Math.PI * 2);
       ctx.stroke();
       // Highlight
@@ -3601,7 +3601,7 @@
         ctx.fillStyle = 'rgba(255,232,240,0.85)';
         ctx.font = 'bold 8px system-ui, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('Monarch', s.x, by - 5);
+        ctx.fillText(e.bossName || 'Monarch', s.x, by - 5); // v1.19: Kings show their own name
       }
     }
   }
@@ -4010,7 +4010,7 @@
     // v1.18 verification hooks (read-mostly; used by headless checks).
     v118: {
       lateSpawnMulAt: (t) => { const sv = timeAlive; timeAlive = t; const m = lateSpawnMul(); timeAlive = sv; return m; },
-      KING_BLAST_DAMAGE, KING_BLAST_RADIUS, MONARCH_BLAST_DAMAGE, BOSS_BLAST_RADIUS, MAGNET_MAX, MAGNET_PER_PICK,
+      KING_BLAST_DAMAGE, KING_DEFS, MONARCH_BLAST_DAMAGE, BOSS_BLAST_RADIUS, MAGNET_MAX, MAGNET_PER_PICK,
       applyUpgradeById: (id) => {
         const u = UPGRADE_DEFS.find(x => x.id === id);
         if (u && player) u.apply(player);
@@ -4022,6 +4022,16 @@
         const bs = enemies.filter(e => e.isBoss);
         bs.forEach((e, i) => { const o = obstacles[i % obstacles.length]; if (o) { e.x = o.x + 0.5; e.y = o.y + 0.5; } });
         return bs.map(e => ({ x: e.x, y: e.y }));
+      },
+      // v1.19: stage the 3 Big Kings around the player for a size preview screenshot.
+      stageKingPreview: () => {
+        if (!player) return null;
+        player.invuln = 999;
+        const kings = enemies.filter(e => e.isBoss && e.bossKind === 'king');
+        const pos = [[-150, -10], [0, 150], [150, 0]];
+        kings.slice(0, 3).forEach((e, i) => { e.x = player.x + pos[i][0]; e.y = player.y + pos[i][1]; e.blastCd = 99; });
+        enemies = enemies.filter(e => !(e.isBoss && e.bossKind === 'monarch'));
+        return kings.map(e => ({ id: e.kingId, r: e.r, frameW: slimeFrames[e.color][0].width, frameH: slimeFrames[e.color][0].height }));
       },
       nearestObstacleDist: () => enemies.filter(e => e.isBoss).map(e => Math.min(...obstacles.map(o => Math.hypot(e.x - o.x, e.y - o.y)))),
     },

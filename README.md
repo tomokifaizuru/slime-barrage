@@ -1,10 +1,10 @@
-# Slime Barrage v1.18
+# Slime Barrage v1.19
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **defeat the Amber Colossus King** (Survival) or **win Timed at 6:00**.
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.18** — Late difficulty ramp from 9:00, Gem Magnet capped at 8 (+10%/pick), live global ranks, smaller/harder King blasts, bosses pass through trees/bushes. Cache-bust `?v=1.18`.
+> **v1.19** — Big Kings are **half size** (sprite + hitbox); King blast back to full-size orb (r22) but keeps **35 damage**. Includes v1.18 (late ramp, Magnet cap 8, live global ranks, boss pass-through). Cache-bust `?v=1.19`.
 
 ## How to play
 
@@ -68,12 +68,18 @@ Scoring:
 - **Survival:** `time×5 + kills×12 + lv×20`
 - **Timed:** `kills×10 + time×2 + lv×25`
 
+## What’s new in v1.19
+
+- **Big Kings half size:** body sprite + collision radius halved — Frostmint Regent r **120 → 60** (frame 160 → 80), Crown Jelly Sovereign r **136 → 68** (176 → 88), Amber Colossus King r **152 → 76** (192 → 96). Contact damage range and projectile hit detection use the new radius; HP bar / label sit above the smaller sprite. HP, speed, pass-through unchanged. Monarchs unchanged.
+- **King blast orb** restored to v1.17 size (radius **22**, same drawn visual); damage stays **35**.
+- Cache-bust `?v=1.19`.
+
 ## What’s new in v1.18
 
 - **Late difficulty ramp:** from **9:00** (t ≥ 540s) normal + elite spawn rate ×`1 + 0.02 × (floor((t−540)/60) + 1)` → 9:00 ×1.02, 10:00 ×1.04, … (additive). Enemy cap (Survival 140 / Timed 120) scales by the same factor so it doesn't block the increase. Other ramps unchanged.
 - **Gem Magnet:** **+10%** pickup range per pick (was +40%), **max 8 picks**; removed from level-up choices once maxed.
 - **Global Rank live:** end screen shows your real **Global Rank #** after the score POST succeeds (was a local-cache rank). Rankings panel shows the server board as-is when online (local cache only used offline).
-- **Big King blasts** (Frostmint Regent / Crown Jelly Sovereign / Amber Colossus King): **35 damage** (was 12), orb radius **11** (was 22) — drawn visual halved too. Monarch blast unchanged (10 dmg, radius 22).
+- **Big King blasts** (Frostmint Regent / Crown Jelly Sovereign / Amber Colossus King): **35 damage** (was 12). Monarch blast unchanged (10 dmg). *(v1.18 also halved the King orb radius — reverted in v1.19.)*
 - **Boss pass-through:** Monarchs and Big Kings ignore tree/bush collisions (same speed). Player / normal / elite mobs unchanged.
 - Cache-bust `?v=1.18`.
 
