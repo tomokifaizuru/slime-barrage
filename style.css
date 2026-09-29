@@ -819,3 +819,169 @@ html, body {
   .run-chips .lvl-chip { font-size: 0.56em; }
   .chip-stat { font-size: 0.5em; }
 }
+
+/* ---------- v1.20 Title menu redesign ---------- */
+.menu-panel {
+  font-size: clamp(11px, 3.4vmin, 20px);
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(160, 70, 220, 0.28), rgba(8, 10, 22, 0) 62%),
+    linear-gradient(180deg, rgba(10, 8, 24, 0.55), rgba(6, 8, 18, 0.72));
+  justify-content: center;
+  gap: 0;
+  padding: 4% 5% 2.2em;
+  overflow: hidden;
+}
+.menu-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4em;
+  width: 100%;
+  max-width: 34em;
+}
+.menu-logo {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.logo-img {
+  display: block;
+  width: 100%;
+  max-width: 30em;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 0.9em;
+  border: 2px solid rgba(255, 160, 230, 0.75);
+  box-shadow:
+    0 0 0 3px rgba(90, 40, 150, 0.85),
+    0 0 1.2em rgba(230, 90, 255, 0.55),
+    0 0 2.6em rgba(120, 200, 255, 0.25);
+  animation: logoGlow 2.8s ease-in-out infinite;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+  image-rendering: auto;
+}
+@keyframes logoGlow {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(90, 40, 150, 0.85), 0 0 1.1em rgba(230, 90, 255, 0.5), 0 0 2.4em rgba(120, 200, 255, 0.22); transform: translateY(0); }
+  50% { box-shadow: 0 0 0 3px rgba(110, 50, 170, 0.9), 0 0 1.6em rgba(255, 120, 230, 0.7), 0 0 3em rgba(140, 220, 255, 0.35); transform: translateY(-0.12em); }
+}
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75em;
+  width: min(100%, 21em);
+}
+.menu-tagline {
+  font-size: 0.82em;
+  color: #c0b0e8;
+  line-height: 1.35;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+.btn.play-btn {
+  width: 100%;
+  font-size: 1.75em;
+  letter-spacing: 0.16em;
+  padding: 0.55em 0.8em;
+  border-radius: 0.5em;
+  background: linear-gradient(180deg, #ffe07a 0%, #ffb640 55%, #ff9a2e 100%);
+  color: #3a1a08;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0.16em 0 #a0501a, 0 0 1em rgba(255, 190, 80, 0.55);
+  border: 2px solid #fff0b8;
+}
+.play-btn .play-icon { font-size: 0.8em; margin-right: 0.15em; }
+.btn.play-btn:active { transform: translateY(2px) scale(1); box-shadow: 0 0.05em 0 #a0501a; }
+.menu-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55em;
+}
+.menu-sec {
+  width: 100%;
+  font-size: 1em;
+  letter-spacing: 0.06em;
+  padding: 0.7em 0.5em;
+  background: linear-gradient(180deg, #34406a, #252e50);
+  border: 1px solid rgba(196, 176, 232, 0.45);
+  box-shadow: 0 0.16em 0 #141a30, 0 0 0.5em rgba(160, 120, 255, 0.18);
+  color: #efe8ff;
+  white-space: nowrap;
+}
+.menu-sec-wide { grid-column: 1 / -1; }
+.best-line {
+  text-align: center;
+  font-size: 0.8em;
+  font-weight: 700;
+  color: #7dcea0;
+  letter-spacing: 0.04em;
+}
+.menu-panel .version-label {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 0.7em;
+  text-align: center;
+  font-size: 0.72em;
+  opacity: 0.75;
+  pointer-events: none;
+}
+/* Landscape: logo left, actions right */
+@media (orientation: landscape) {
+  .menu-panel { padding: 3% 4% 1.8em; }
+  .menu-layout {
+    flex-direction: row;
+    max-width: 52em;
+    gap: 1.6em;
+  }
+  .menu-logo { flex: 1 1 58%; }
+  .logo-img { max-width: none; max-height: 72vh; width: 100%; object-fit: cover; }
+  .menu-actions { flex: 0 1 17em; width: auto; }
+}
+
+/* ---------- v1.20 Options / How to Play sheets ---------- */
+#options, #how { font-size: clamp(11px, 3.2vmin, 18px); }
+.sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+  width: min(26em, 94%);
+  padding: 1.1em 1.2em 1.2em;
+  border-radius: 0.8em;
+  background: linear-gradient(180deg, rgba(34, 26, 60, 0.94), rgba(18, 16, 34, 0.94));
+  border: 2px solid rgba(196, 176, 232, 0.55);
+  box-shadow: 0 0 1.4em rgba(170, 90, 255, 0.3);
+}
+.options-audio { width: 100%; gap: 0.75em; margin: 0.3em 0 0.4em; }
+.options-audio .vol-row { font-size: 1em; }
+.options-audio input[type="range"] { height: 1.4em; }
+.options-note { font-size: 0.75em; color: #8890a8; }
+.options-mute { font-size: 1em; padding: 0.5em 1.1em; }
+.how-sheet { width: min(30em, 94%); }
+.how-list {
+  list-style: none;
+  text-align: left;
+  font-size: 0.9em;
+  line-height: 1.45;
+  color: #d8def0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0.2em 0 0.3em;
+}
+.how-list b { color: #ffe8a0; }
+.how-score { font-size: 0.78em; color: #9aa4c0; }
+.pause-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  width: min(16em, 80%);
+}
+.pause-btns .btn { width: 100%; }
+.rank-columns.single { width: min(20em, 94%); }
+#ranks { font-size: clamp(11px, 3vmin, 17px); }
+.rank-columns.single .rank-col,
+.rank-columns .rank-col { flex: 1 1 auto; }

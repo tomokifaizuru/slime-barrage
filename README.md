@@ -1,10 +1,10 @@
-# Slime Barrage v1.19
+# Slime Barrage v1.20
 
-A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **defeat the Amber Colossus King** (Survival) or **win Timed at 6:00**.
+A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and **defeat the Amber Colossus King** to win (endless Continue? after).
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.19** — Big Kings are **half size** (sprite + hitbox); King blast back to full-size orb (r22) but keeps **35 damage**. Includes v1.18 (late ramp, Magnet cap 8, live global ranks, boss pass-through). Cache-bust `?v=1.19`.
+> **v1.20** — New title menu, Options panel, **Gold Big Shot** evolution, **Zeus Hammer** + **Ice Grenades** skills, King off-screen arrows, mob speed ramp from 4:00, Rapid/Spark rebalance, Timed mode removed. Cache-bust `?v=1.20`.
 
 ## How to play
 
@@ -15,7 +15,7 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
    python3 -m http.server 8080
    # then visit http://localhost:8080
    ```
-3. Pick **SURVIVAL** or **TIMED 6:00** (or press Enter / Space for last mode). Audio unlocks on that first gesture.
+3. Tap **PLAY** (or press Enter / Space). Audio unlocks on that first gesture. **Rankings**, **Options** (Music / SFX / Zoom / mute) and **How to Play** sit under PLAY.
 
 ### Controls
 
@@ -28,24 +28,22 @@ Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, 
 | **Enter / Space / R** | Confirm on menu / game over |
 | **M** or 🔊 button | Mute / unmute (saved) |
 | **Esc / P** or ⏸ button | Pause / resume |
-| Music / SFX sliders | Separate volumes (saved) |
-| **Zoom** slider (Menu / Pause) | Portrait camera Far↔Close (saved) |
+| **Options** (title menu / Pause) | Music + SFX volume, portrait Zoom Far↔Close, mute (all saved) |
 | On-screen stick (touch) | Move on mobile (floating) |
 
 ### Modes
 
 | Mode | Goal |
 |------|------|
-| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **12:00**, then every set) to **win**. Difficulty holds at **68%** through **1:00**, then ramps **+2.5% per minute** to **200%**; mob spawn rate shares that scale (starts **68%**). Normal + elite spawn at **85%** of the prior rate. Each minute normal+elite gain **+1% speed & damage**. From **9:00**, normal+elite spawn rate gains **+2% per full minute** (additive; mob cap scales too). HUD shows time survived. |
-| **Timed** | Survive **6:00** to win. Milder difficulty curve. |
+| **Survival** | Defeat **Amber Colossus King** (3rd Big King @ **12:00**, then every set) to **win**. Difficulty holds at **68%** through **1:00**, then ramps **+2.5% per minute** to **200%**; mob spawn rate shares that scale (starts **68%**). Normal + elite spawn at **85%** of the prior rate. Each minute normal+elite gain **+1% speed & damage**; from **4:00** they also gain **+2.5% speed per full minute** (4:00 +2.5%, 5:00 +5% …, bosses excluded). From **9:00**, normal+elite spawn rate gains **+2% per full minute** (additive; mob cap scales too). HUD shows time survived. |
 
-Last mode is remembered in `localStorage`.
+*Timed 6:00 mode was removed in v1.20.*
 
 ### Upgrades (pick 1 of 3 on level up)
 
-Sharp Spark (**max 8**), Rapid Fire (**max 8**), Sneaker Boost (**max 6**, move trails), Hoodie Padding (max HP **cap 200**), Gem Magnet (**+10% pickup range**, **max 8** — then leaves the pool), Multishot (**max 8**, gold/yellow sparks), Pierce Shot (**max 6**), Snack Break (heal), **Orbit Guard** (**max 10**), **Orbiting Fairy** (max level **8** / up to **5** on screen, gold auras L6–8), **Pulse Laser** (L1–10), **Omni Beam** (8/12-way burst — **only after Laser 6**), **Barrier Shield** (**+50 shield** each pick, absorb before HP, **cap 200**, additive).
+Sharp Spark (**+7%** dmg, **max 8**), Rapid Fire (**−10%** fire cooldown, **max 8**), Sneaker Boost (**max 6**, move trails), Hoodie Padding (max HP **cap 200**), Gem Magnet (**+10% pickup range**, **max 8** — then leaves the pool), Multishot (**max 5**) → **Gold Big Shot** evolution (Multi 5 + Lv 15: one big gold shot, damage ×5, keeps pierce + Rapid cadence), **Zeus Hammer** (max 8: sky lightning, L1 4.0s / 8 dmg / 1 bolt → L8 2.25s / 22 dmg / 8 bolts + glow), **Ice Grenades** (max 8: every 8s, freezes mobs within ~45px for 1.0s → 2.05s; bosses half), Pierce Shot (**max 6**), Snack Break (heal), **Orbit Guard** (**max 10**), **Orbiting Fairy** (max level **8** / up to **5** on screen, gold auras L6–8), **Pulse Laser** (L1–10), **Omni Beam** (8/12-way burst — **only after Laser 6**), **Barrier Shield** (**+50 shield** each pick, absorb before HP, **cap 200**, additive).
 
-Maxed skills still appear as **dimmed / unclickable** cards (except Gem Magnet, which disappears after 8); the pool prefers available upgrades first. Level-up cards + in-run **HUD chips** (left side) show an **icon** plus current weapon/skill levels (incl. Shield).
+Maxed skills still appear as **dimmed / unclickable** cards (except Gem Magnet after 8 picks, Multishot after the Gold Big Shot evolution, and the one-time evolution card itself); the pool prefers available upgrades first. Level-up cards + in-run **HUD chips** (left side) show an **icon** plus current weapon/skill levels (incl. Shield).
 
 ### XP gems (hardcoded totals)
 
@@ -61,12 +59,21 @@ Maxed skills still appear as **dimmed / unclickable** cards (except Gem Magnet, 
 
 ### Rankings
 
-**Global / online** Survival | Timed boards (top 10 each) via HighScore API (`api-leaderboard.qulyubis.biz.id`). Fresh gameIds (**18** Survival / **19** Timed) — **not** Tomo Crossroad (17). Old local keys (`slimeBarrageLbSurvival` / `slimeBarrageLbTimed`) are cleared on load; new cache keys are `slimeBarrageV11bLb*`.
+**Global / online** Survival board (top 10) via HighScore API (`api-leaderboard.qulyubis.biz.id`), gameId **18** — **not** Tomo Crossroad (17). The Timed board (19) is no longer used by the game (server untouched).
 
-Scoring:
+Scoring: `time×5 + kills×12 + lv×20`
 
-- **Survival:** `time×5 + kills×12 + lv×20`
-- **Timed:** `kills×10 + time×2 + lv×25`
+## What’s new in v1.20
+
+- **Title menu redesign:** neon logo card, big gold **PLAY**, then Rankings / Options / How to Play; drifting background slimes; small version label. Portrait (412×915) and landscape layouts.
+- **Options panel** (title + Pause): Music, SFX, Zoom, mute — same localStorage keys as before.
+- **Timed 6:00 removed** (menu, code paths, rankings UI shows Survival only).
+- **Rapid Fire:** fire cooldown ×0.9 per pick (was ×0.8). **Sharp Spark:** +7% per pick (was +25%).
+- **Multishot max 5** → **Gold Big Shot** evolution card at Multi 5 + Lv 15 (one-time). Single big gold projectile, damage = spark damage × 5, keeps pierce, fires at Rapid cadence. HUD chip "Gold".
+- **Zeus Hammer** (new, max 8) and **Ice Grenades** (new, max 8) with HUD chips + stats.
+- **King off-screen arrows** in each King's colors (Frostmint mint/ice, Crown Jelly purple/gold, Amber orange).
+- **Mob speed ramp:** normal+elite +2.5% speed per full minute from 4:00 (stacks with +1%/min).
+- Cache-bust `?v=1.20`.
 
 ## What’s new in v1.19
 

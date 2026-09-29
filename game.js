@@ -1,14 +1,15 @@
 /**
- * Slime Barrage v1.19
+ * Slime Barrage v1.20
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
  * Mid-run Pink-Mint Monarch×2 every 3m; Survival Big Kings every 4m from 4:00.
- * Zoomed-out FOV baked into higher-res canvas (VIEW_ZOOM=1), infinite meadow, Survival + Timed.
+ * Zoomed-out FOV baked into higher-res canvas (VIEW_ZOOM=1), infinite meadow, Survival (Timed removed v1.20).
  * Orbit Guard (10), Pulse Laser L1–10, Omni (after Laser 6), Fairy (5 / L8).
  * Wipe skill, Barrier Shield, XP gem tiers, HP regen, HUD run chips + icons.
  * Multishot/Sharp/Rapid max 8; Sneaker 6; Pierce 6; HP 200; Survival 68%→200%.
- * Survival Amber → Continue?/claim win; global rankings (fresh gameIds 18/19).
+ * Survival Amber → Continue?/claim win; global Survival rankings (gameId 18).
+ * v1.20: Gold Big Shot evolution, Zeus Hammer, Ice Grenades, Options panel, King arrows.
  */
 (() => {
   'use strict';
@@ -22,8 +23,7 @@
   let W = BASE_W, H = BASE_H;
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
-  const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v1.19';
+  const VERSION = 'v1.20';
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
@@ -62,7 +62,26 @@
   let VIEW_ZOOM = VIEW_ZOOM_PORTRAIT;
   // Extra buffer pixels for retina / CSS downscale (pixel art stays nearest-neighbor).
   let BUFFER_SCALE = 1;
-  const MULTISHOT_MAX = 8;
+  const MULTISHOT_MAX = 5; // v1.20: was 8
+  // v1.20 Gold Big Shot evolution (Multi 5 + player Lv 15): one big gold shot = damage × 5.
+  const GOLD_SHOT_MIN_LEVEL = 15;
+  const GOLD_SHOT_DMG_MUL = 5;
+  const GOLD_SHOT_RADIUS = 12;
+  // v1.20 Zeus Hammer: sky lightning on mobs near the player.
+  const ZEUS_MAX = 8;
+  const ZEUS_RANGE = 220;
+  function zeusCdFor(lv) { return 4.0 - 0.25 * (lv - 1); }
+  function zeusDmgFor(lv) { return 8 + 2 * (lv - 1); }
+  // v1.20 Ice Grenades: arcing grenade freezes mobs in a small area (no damage).
+  const ICE_MAX = 8;
+  const ICE_CD = 8;
+  const ICE_RANGE = 220;
+  const ICE_RADIUS = 45;
+  const ICE_FLIGHT = 0.6;
+  function iceFreezeFor(lv) { return 1.0 + 0.15 * (lv - 1); }
+  // v1.20 mob speed ramp: normal+elite +2.5% speed per full minute from 4:00.
+  const MOB_SPEED_RAMP_START_T = 240;
+  const MOB_SPEED_RAMP_PER_MIN = 0.025;
   const PIERCE_MAX = 6;
   const LASER_CADENCE_MAX = 6; // L1–6 cadence 2.0→0.75; L7–10 keep 0.75 + thicken
   const LASER_MAX_LEVEL = 10;
@@ -132,8 +151,15 @@
     levelup: document.getElementById('levelup'),
     amberContinue: document.getElementById('amberContinue'),
     end: document.getElementById('end'),
-    playSurvivalBtn: document.getElementById('playSurvivalBtn'),
-    playTimedBtn: document.getElementById('playTimedBtn'),
+    playSurvivalBtn: document.getElementById('playBtn'),
+    optionsBtn: document.getElementById('optionsBtn'),
+    pauseOptionsBtn: document.getElementById('pauseOptionsBtn'),
+    options: document.getElementById('options'),
+    optionsBackBtn: document.getElementById('optionsBackBtn'),
+    howBtn: document.getElementById('howBtn'),
+    how: document.getElementById('how'),
+    howBackBtn: document.getElementById('howBackBtn'),
+    bestLine: document.getElementById('bestLine'),
     menuBtn: document.getElementById('menuBtn'),
     resumeBtn: document.getElementById('resumeBtn'),
     pauseMenuBtn: document.getElementById('pauseMenuBtn'),
@@ -146,14 +172,8 @@
     sfxVol: document.getElementById('sfxVol'),
     musicVolVal: document.getElementById('musicVolVal'),
     sfxVolVal: document.getElementById('sfxVolVal'),
-    musicVolPause: document.getElementById('musicVolPause'),
-    sfxVolPause: document.getElementById('sfxVolPause'),
-    musicVolPauseVal: document.getElementById('musicVolPauseVal'),
-    sfxVolPauseVal: document.getElementById('sfxVolPauseVal'),
     zoomSlider: document.getElementById('zoomSlider'),
     zoomVal: document.getElementById('zoomVal'),
-    zoomSliderPause: document.getElementById('zoomSliderPause'),
-    zoomValPause: document.getElementById('zoomValPause'),
     hpFill: document.getElementById('hpFill'),
     hpText: document.getElementById('hpText'),
     xpFill: document.getElementById('xpFill'),
@@ -172,7 +192,6 @@
     ranks: document.getElementById('ranks'),
     ranksBackBtn: document.getElementById('ranksBackBtn'),
     rankSurvivalList: document.getElementById('rankSurvivalList'),
-    rankTimedList: document.getElementById('rankTimedList'),
     rankNameInput: document.getElementById('rankNameInput'),
     rankSaveNameBtn: document.getElementById('rankSaveNameBtn'),
     endRankNote: document.getElementById('endRankNote'),
@@ -755,6 +774,9 @@
       setTimeout(() => noise(0.12, 0.05, 3200), 1560);
     }
     function click() { tone(660, 0.04, 'square', 0.07); }
+    // v1.20: Zeus Hammer crackle + Ice Grenade shatter (light, procedural).
+    function zap() { noise(0.12, 0.07, 4200); tone(1600, 0.07, 'sawtooth', 0.04, 260); }
+    function freeze() { tone(1320, 0.1, 'triangle', 0.06, 2200); noise(0.08, 0.04, 6000); }
 
     function bgmPulse(freq, when, dur, wave, vol) {
       if (!freq || freq <= 0) return;
@@ -889,7 +911,7 @@
     return {
       unlock, toggleMute, setMuted, isMuted,
       getMusicVol, getSfxVol, setMusicVol, setSfxVol, setBgmDucked, setBgmTrack,
-      shoot, laser, hit, kill, xp, levelUp, hurt, death, win, click,
+      shoot, laser, hit, kill, xp, levelUp, hurt, death, win, click, zap, freeze,
       startBgm, stopBgm,
     };
   })();
@@ -909,8 +931,6 @@
     const pairs = [
       [el.musicVol, el.musicVolVal, m],
       [el.sfxVol, el.sfxVolVal, s],
-      [el.musicVolPause, el.musicVolPauseVal, m],
-      [el.sfxVolPause, el.sfxVolPauseVal, s],
     ];
     for (const [input, label, val] of pairs) {
       if (!input) continue;
@@ -932,8 +952,6 @@
   }
   bindVolSlider(el.musicVol, AudioFX.setMusicVol);
   bindVolSlider(el.sfxVol, AudioFX.setSfxVol);
-  bindVolSlider(el.musicVolPause, AudioFX.setMusicVol);
-  bindVolSlider(el.sfxVolPause, AudioFX.setSfxVol);
 
   function formatZoom(z) {
     return String(Number(z.toFixed(2)));
@@ -942,7 +960,6 @@
     const z = VIEW_ZOOM_PORTRAIT;
     const pairs = [
       [el.zoomSlider, el.zoomVal],
-      [el.zoomSliderPause, el.zoomValPause],
     ];
     for (const [input, label] of pairs) {
       if (!input) continue;
@@ -969,7 +986,6 @@
   }
   syncZoomUI();
   bindZoomSlider(el.zoomSlider);
-  bindZoomSlider(el.zoomSliderPause);
 
   // ---------- Input ----------
   const keys = Object.create(null);
@@ -981,7 +997,8 @@
   window.addEventListener('keydown', e => {
     keys[e.code] = true;
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
-    if (state === 'MENU' && (e.code === 'Enter' || e.code === 'Space')) {
+    if (state === 'MENU' && (e.code === 'Enter' || e.code === 'Space') && !el.menu.classList.contains('hidden') &&
+        !(document.activeElement && /^(INPUT|BUTTON)$/.test(document.activeElement.tagName))) {
       AudioFX.unlock(); AudioFX.click(); startGame(playMode);
     }
     if ((state === 'GAMEOVER' || state === 'WIN') && (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyR')) {
@@ -1001,6 +1018,9 @@
       return;
     }
     if (e.code === 'KeyM') { AudioFX.unlock(); AudioFX.toggleMute(); }
+    if (e.code === 'Escape' && el.options && !el.options.classList.contains('hidden')) {
+      e.preventDefault(); closeOptions(); return;
+    }
     if (e.code === 'Escape' || e.code === 'KeyP') {
       if (state === 'PLAYING') { e.preventDefault(); togglePause(true); }
       else if (state === 'PAUSED') { e.preventDefault(); togglePause(false); }
@@ -1109,7 +1129,25 @@
     });
   }
   bindModeStart(el.playSurvivalBtn, 'survival');
-  bindModeStart(el.playTimedBtn, 'timed');
+
+  // v1.20 Options panel (Music / SFX / Zoom / Mute) — opened from title menu or Pause.
+  let optionsReturn = 'menu';
+  function openOptions(from) {
+    optionsReturn = from === 'pause' ? 'pause' : 'menu';
+    syncVolUI();
+    syncZoomUI();
+    syncMuteUI();
+    showOnly('options');
+  }
+  function closeOptions() {
+    AudioFX.click();
+    showOnly(optionsReturn === 'pause' && state === 'PAUSED' ? 'pause' : 'menu');
+  }
+  if (el.optionsBtn) el.optionsBtn.addEventListener('click', () => { AudioFX.unlock(); AudioFX.click(); openOptions('menu'); });
+  if (el.pauseOptionsBtn) el.pauseOptionsBtn.addEventListener('click', () => { AudioFX.click(); if (state === 'PAUSED') openOptions('pause'); });
+  if (el.optionsBackBtn) el.optionsBackBtn.addEventListener('click', closeOptions);
+  if (el.howBtn) el.howBtn.addEventListener('click', () => { AudioFX.unlock(); AudioFX.click(); showOnly('how'); });
+  if (el.howBackBtn) el.howBackBtn.addEventListener('click', () => { AudioFX.click(); showOnly('menu'); });
   el.menuBtn.addEventListener('click', () => { AudioFX.click(); goMenu(); });
   el.muteBtnMenu.addEventListener('click', () => { AudioFX.unlock(); AudioFX.toggleMute(); });
   el.muteBtnHud.addEventListener('click', () => { AudioFX.unlock(); AudioFX.toggleMute(); });
@@ -1693,8 +1731,12 @@
   let nextKingIndex = 0; // Survival Big King ordinal (cycles types)
   let nextKingAt = KING_SPAWN_START; // first King at 4:00
   let moveTrails = []; // Sneaker Boost visual trails
-  let playMode = localStorage.getItem('slimeBarrageMode') === 'survival' ? 'survival' : 'timed';
+  const playMode = 'survival'; // v1.20: Timed 6:00 mode removed
   let lasers = []; // active beam visuals {x,y,ang,life,damage,hit,gold,omni}
+  let zeusBolts = []; // v1.20 lightning visuals {x,y,pts,life,maxLife,width,glow}
+  let iceGrenades = []; // v1.20 in-flight grenades {sx,sy,tx,ty,t,target}
+  let iceBursts = []; // v1.20 landing rings {x,y,life,maxLife}
+  let skyFlash = 0; // v1.20 Zeus L8 screen flash
   let bestSurvival = parseFloat(localStorage.getItem('slimeBarrageBestSurvival') || '0') || 0;
   let wipeCd = 0;
   let playerName = '';
@@ -1705,22 +1747,26 @@
     dmg: '⚡', rate: '🔥', spd: '👟', hp: '❤', magnet: '🧲',
     multi: '✦', pierce: '➤', heal: '🍪', orbit: '🌀', laser: '▬',
     omni: '✺', fairy: '🧚', barrier: '🛡',
+    goldshot: '🌟', zeus: '🔨', ice: '❄',
   };
   const CHIP_ICONS = {
     Multi: '✦', Pierce: '➤', Laser: '▬', Orbit: '🌀', Omni: '✺',
     Fairy: '🧚', Spark: '⚡', Rapid: '🔥', Sneak: '👟', HP: '❤', Shield: '🛡',
+    Gold: '🌟', Zeus: '🔨', Ice: '❄',
   };
 
   const UPGRADE_DEFS = [
-    { id: 'dmg', name: 'Sharp Spark', desc: '+25% projectile damage (max 8)', apply: p => {
+    // v1.20: +7% per pick (was +25%); kept to 2 decimals so small picks aren't lost to rounding.
+    { id: 'dmg', name: 'Sharp Spark', desc: '+7% projectile damage (max 8)', apply: p => {
       if ((p.dmgLevel || 0) >= DMG_MAX) return;
       p.dmgLevel = (p.dmgLevel || 0) + 1;
-      p.damage = Math.round(p.damage * 1.25);
+      p.damage = Math.round(p.damage * 1.07 * 100) / 100;
     } },
-    { id: 'rate', name: 'Rapid Fire', desc: '+20% fire rate (max 8)', apply: p => {
+    // v1.20: half the per-pick effect — fire cooldown ×0.9 (−10%) per pick (was ×0.8, −20%).
+    { id: 'rate', name: 'Rapid Fire', desc: '−10% fire cooldown (max 8)', apply: p => {
       if ((p.rateLevel || 0) >= RATE_MAX) return;
       p.rateLevel = (p.rateLevel || 0) + 1;
-      p.fireCdMax = Math.max(0.12, p.fireCdMax * 0.8);
+      p.fireCdMax = Math.max(0.12, p.fireCdMax * 0.9);
     } },
     { id: 'spd', name: 'Sneaker Boost', desc: '+15% move speed (max 6)', apply: p => {
       if ((p.spdLevel || 0) >= SPD_MAX) return;
@@ -1738,7 +1784,25 @@
       p.magnetLevel = (p.magnetLevel || 0) + 1;
       p.magnet *= 1 + MAGNET_PER_PICK;
     } },
-    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 8 · gold sparks)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
+    { id: 'multi', name: 'Multishot', desc: '+1 projectile (max 5 · evolves at Lv 15)', apply: p => { p.multishot = Math.min(MULTISHOT_MAX, p.multishot + 1); } },
+    { id: 'goldshot', name: 'Gold Big Shot', desc: 'EVOLUTION · Multi 5 → one big gold shot (×5 dmg, keeps pierce & Rapid)', special: true, apply: p => {
+      if (p.goldShot || p.multishot < MULTISHOT_MAX) return;
+      p.goldShot = true;
+    } },
+    { id: 'zeus', name: 'Zeus Hammer', desc: 'Sky lightning on nearby mobs · +1 bolt, −0.25s, +2 dmg per level (max 8)', apply: p => {
+      if ((p.zeusLevel || 0) >= ZEUS_MAX) return;
+      p.zeusLevel = (p.zeusLevel || 0) + 1;
+      p.zeusCdMax = zeusCdFor(p.zeusLevel);
+      p.zeusDamage = zeusDmgFor(p.zeusLevel);
+      p.zeusBolts = p.zeusLevel;
+      if (!(p.zeusCd > 0)) p.zeusCd = 0.6;
+    } },
+    { id: 'ice', name: 'Ice Grenades', desc: 'Every 8s lob a grenade that freezes mobs (1.0s +0.15s/lv, max 8)', apply: p => {
+      if ((p.iceLevel || 0) >= ICE_MAX) return;
+      p.iceLevel = (p.iceLevel || 0) + 1;
+      p.iceFreeze = iceFreezeFor(p.iceLevel);
+      if (!(p.iceCd > 0)) p.iceCd = 1.0;
+    } },
     { id: 'pierce', name: 'Pierce Shot', desc: 'Projectiles pierce +1 (max 6)', apply: p => { p.pierce = Math.min(PIERCE_MAX, p.pierce + 1); } },
     { id: 'heal', name: 'Snack Break', desc: 'Restore 40 HP', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
     { id: 'orbit', name: 'Orbit Guard', desc: 'Shield orbs spin & smash (max 10)', apply: p => {
@@ -1807,9 +1871,13 @@
 
   /** Mob chase-speed multiplier vs baseline (difficulty scale only). */
   function mobSpeedMul() {
-    if (playMode === 'survival') return survivalDiffMul();
-    // Timed: mild 90%→110% over the 6:00 window
-    return Math.min(1.1, 0.9 + timeAlive / 1800);
+    return survivalDiffMul();
+  }
+
+  /** v1.20: normal + elite speed ramp, +2.5% per full minute from 4:00 (bosses excluded). */
+  function mobRampSpeedMul() {
+    if (timeAlive < MOB_SPEED_RAMP_START_T) return 1;
+    return 1 + MOB_SPEED_RAMP_PER_MIN * (Math.floor((timeAlive - MOB_SPEED_RAMP_START_T) / 60) + 1);
   }
 
   function anyMonarchAlive() {
@@ -1865,15 +1933,22 @@
       hpRegenAcc: 0,
       shield: 0,
       barrierPicks: 0,
+      goldShot: false,
+      zeusLevel: 0, zeusCd: 0, zeusCdMax: 4.0, zeusDamage: 0, zeusBolts: 0,
+      iceLevel: 0, iceCd: 0, iceFreeze: 0,
     };
   }
 
   function showOnly(panel) {
     el.menu.classList.toggle('hidden', panel !== 'menu');
+    if (el.options) el.options.classList.toggle('hidden', panel !== 'options');
+    if (el.how) el.how.classList.toggle('hidden', panel !== 'how');
     el.hud.classList.toggle('hidden', panel !== 'hud' && panel !== 'levelup' && panel !== 'end' && panel !== 'pause' && panel !== 'amberContinue');
     // Keep HUD visible under levelup/end/pause/continue for context, but hide on menu
     if (panel === 'levelup' || panel === 'end' || panel === 'pause' || panel === 'amberContinue') el.hud.classList.remove('hidden');
-    if (panel === 'menu' || panel === 'ranks') el.hud.classList.add('hidden');
+    if (panel === 'menu' || panel === 'ranks' || panel === 'how') el.hud.classList.add('hidden');
+    // Options over Pause keeps the run HUD for context; from the title menu it stays hidden.
+    if (panel === 'options') el.hud.classList.toggle('hidden', state !== 'PAUSED');
     el.pause.classList.toggle('hidden', panel !== 'pause');
     el.levelup.classList.toggle('hidden', panel !== 'levelup');
     if (el.amberContinue) el.amberContinue.classList.toggle('hidden', panel !== 'amberContinue');
@@ -1993,8 +2068,7 @@
   }
 
   function startGame(mode) {
-    if (mode === 'survival' || mode === 'timed') playMode = mode;
-    try { localStorage.setItem('slimeBarrageMode', playMode); } catch (_) {}
+    try { localStorage.removeItem('slimeBarrageMode'); } catch (_) {}
     player = resetPlayer();
     enemies = [];
     projectiles = [];
@@ -2003,6 +2077,10 @@
     particles = [];
     dmgNums = [];
     lasers = [];
+    zeusBolts = [];
+    iceGrenades = [];
+    iceBursts = [];
+    skyFlash = 0;
     timeAlive = 0;
     spawnTimer = 0.5;
     killCount = 0;
@@ -2029,8 +2107,9 @@
   }
 
   function highlightModeButtons() {
-    if (el.playSurvivalBtn) el.playSurvivalBtn.classList.toggle('selected', playMode === 'survival');
-    if (el.playTimedBtn) el.playTimedBtn.classList.toggle('selected', playMode === 'timed');
+    if (el.bestLine) {
+      el.bestLine.textContent = bestSurvival > 0 ? ('Best run ' + formatTime(bestSurvival)) : 'Survive the slime waves · defeat the Kings';
+    }
   }
 
   function goMenu() {
@@ -2044,6 +2123,7 @@
     resetStick();
     state = 'MENU';
     showOnly('menu');
+    highlightModeButtons();
   }
 
   function xpForLevel(lv) {
@@ -2074,14 +2154,8 @@
     const xpPct = Math.max(0, Math.min(1, player.xp / player.xpNext)) * 100;
     el.xpFill.style.width = xpPct + '%';
     el.xpText.textContent = 'Lv ' + player.level;
-    if (playMode === 'survival') {
-      el.timer.textContent = formatTime(timeAlive);
-      el.timer.title = 'Time survived';
-    } else {
-      const remain = Math.max(0, WIN_TIME_TIMED - timeAlive);
-      el.timer.textContent = formatTime(remain);
-      el.timer.title = 'Time remaining';
-    }
+    el.timer.textContent = formatTime(timeAlive);
+    el.timer.title = 'Time survived';
     el.kills.textContent = 'Kills ' + killCount;
     syncWipeBtn();
     syncRunChips();
@@ -2101,18 +2175,15 @@
 
   // ---------- Spawning ----------
   function difficultyScale() {
-    // Survival: 68% through 1:00, then +2.5%/min → max 200%. Timed: mild classic curve.
-    if (playMode === 'survival') return survivalDiffMul();
-    return 1 + timeAlive / 420;
+    // Survival: 68% through 1:00, then +2.5%/min → max 200%.
+    return survivalDiffMul();
   }
 
   function spawnSlime(far = false) {
     const colors = ['mint', 'pink', 'yellow', 'purple'];
     const t = timeAlive;
     const scale = difficultyScale();
-    const eliteChance = playMode === 'survival'
-      ? 0.06 + Math.min(0.14, t / 420)
-      : 0.06 + Math.min(0.08, t / 600);
+    const eliteChance = 0.06 + Math.min(0.14, t / 420);
     const isKing = t > ELITE_SPAWN_MIN_T && Math.random() < eliteChance;
     const color = isKing ? 'king' : colors[(Math.random() * colors.length) | 0];
     const ang = Math.random() * Math.PI * 2;
@@ -2139,7 +2210,7 @@
       color,
       hp: baseHp, maxHp: baseHp,
       baseSpeed: spd,
-      speed: spd * mobSpeedMul() * stack,
+      speed: spd * mobSpeedMul() * stack * mobRampSpeedMul(),
       damage: dmg,
       baseDamage: dmg,
       frame: (Math.random() * 4) | 0,
@@ -2167,7 +2238,7 @@
     }
     // v1.0 ×10 HP formula; display/collision +50% in v1.1.
     const scale = difficultyScale();
-    const hp = (2200 + timeAlive * 4.5) * 10 * (playMode === 'survival' ? scale : 1);
+    const hp = (2200 + timeAlive * 4.5) * 10 * scale;
     const bossSpd = 26 + Math.random() * 4;
     enemies.push({
       x, y,
@@ -2219,7 +2290,7 @@
     }
     const scale = difficultyScale();
     // First King clearly tougher than Monarch (×10 formula); each next type in a set ×2 HP.
-    const base = (8000 + timeAlive * 6) * 12 * (playMode === 'survival' ? scale : 1);
+    const base = (8000 + timeAlive * 6) * 12 * scale;
     const hp = base * Math.pow(2, typeIndex) * setMul;
     const bossSpd = (22 + typeIndex * 2 + Math.random() * 3) * setMul;
     enemies.push({
@@ -2253,12 +2324,10 @@
       spawnMonarchBoss();
       nextMonarchAt += MONARCH_INTERVAL;
     }
-    if (playMode === 'survival') {
-      while (timeAlive >= nextKingAt) {
-        spawnKingBoss(nextKingIndex);
-        nextKingIndex++;
-        nextKingAt += KING_SPAWN_INTERVAL;
-      }
+    while (timeAlive >= nextKingAt) {
+      spawnKingBoss(nextKingIndex);
+      nextKingIndex++;
+      nextKingAt += KING_SPAWN_INTERVAL;
     }
   }
 
@@ -2285,6 +2354,24 @@
     }
     if (!best) return;
     const baseAng = Math.atan2(best.y - player.y, best.x - player.x);
+    if (player.goldShot) {
+      // v1.20 Gold Big Shot: one large gold projectile = damage × 5, keeps pierce, Rapid cadence.
+      projectiles.push({
+        x: player.x, y: player.y - 4,
+        vx: Math.cos(baseAng) * 250,
+        vy: Math.sin(baseAng) * 250,
+        life: 1.6,
+        damage: player.damage * GOLD_SHOT_DMG_MUL,
+        pierce: player.pierce,
+        hit: new Set(),
+        blueFire: false,
+        gold: true,
+        r: GOLD_SHOT_RADIUS,
+      });
+      player.facing = Math.cos(baseAng) >= 0 ? 1 : -1;
+      AudioFX.shoot();
+      return;
+    }
     const count = Math.min(MULTISHOT_MAX, player.multishot);
     const maxedMulti = count >= MULTISHOT_MAX;
     const spread = count > 1 ? 0.22 : 0;
@@ -2470,6 +2557,10 @@
     if (u.id === 'omni' && (player.laserLevel || 0) < OMNI_UNLOCK_LASER) return false;
     // v1.18: Gem Magnet disappears from level-up choices after 8 picks.
     if (u.id === 'magnet' && (player.magnetLevel || 0) >= MAGNET_MAX) return false;
+    // v1.20: Gold Big Shot evolution — offered once Multi is 5 and player Lv >= 15; one-time.
+    if (u.id === 'goldshot') return !player.goldShot && player.multishot >= MULTISHOT_MAX && player.level >= GOLD_SHOT_MIN_LEVEL;
+    // After evolving, Multishot leaves the pool entirely.
+    if (u.id === 'multi' && player.goldShot) return false;
     return true;
   }
 
@@ -2488,6 +2579,9 @@
       case 'fairy': return (player.fairyLevel || 0) >= FAIRY_MAX;
       case 'barrier': return (player.shield || 0) >= SHIELD_CAP;
       case 'magnet': return (player.magnetLevel || 0) >= MAGNET_MAX;
+      case 'goldshot': return !!player.goldShot;
+      case 'zeus': return (player.zeusLevel || 0) >= ZEUS_MAX;
+      case 'ice': return (player.iceLevel || 0) >= ICE_MAX;
       default: return false; // uncapped: heal
     }
   }
@@ -2532,8 +2626,13 @@
     const shots = Math.min(MULTISHOT_MAX, p.multishot);
     const rows = [];
     // Main spark weapon (always): damage per spark + total sparks/s (multishot × volleys/s)
-    rows.push({ label: 'Multi', cur: p.multishot, max: MULTISHOT_MAX,
-      stat: fmtDmg(p.damage) + ' · ' + fmtNum(shots * volley) + '/s' });
+    if (p.goldShot) {
+      rows.push({ label: 'Gold', cur: 1, max: 1,
+        stat: fmtDmg(p.damage * GOLD_SHOT_DMG_MUL) + ' · ' + fmtNum(volley) + '/s' });
+    } else {
+      rows.push({ label: 'Multi', cur: p.multishot, max: MULTISHOT_MAX,
+        stat: fmtDmg(p.damage) + ' · ' + fmtNum(shots * volley) + '/s' });
+    }
     rows.push({ label: 'Pierce', cur: p.pierce || 0, max: PIERCE_MAX,
       stat: 'hits ' + ((p.pierce || 0) + 1) });
     const lv = p.laserLevel || 0;
@@ -2550,6 +2649,12 @@
     const flv = p.fairyLevel || 0;
     rows.push({ label: 'Fairy', cur: flv, max: FAIRY_MAX,
       stat: flv > 0 ? fmtDmg(p.fairyDamage) + ' · ' + fmtNum((p.fairyCount || 1) / (p.fairyCdMax || 0.35)) + '/s' : '' });
+    const zlv = p.zeusLevel || 0;
+    rows.push({ label: 'Zeus', cur: zlv, max: ZEUS_MAX,
+      stat: zlv > 0 ? fmtDmg(p.zeusDamage) + ' ×' + (p.zeusBolts || 1) + ' · ' + fmtNum(1 / (p.zeusCdMax || 4)) + '/s' : '' });
+    const ilv = p.iceLevel || 0;
+    rows.push({ label: 'Ice', cur: ilv, max: ICE_MAX,
+      stat: ilv > 0 ? 'freeze ' + (p.iceFreeze || 1).toFixed(2).replace(/0$/, '') + 's · ' + fmtNum(1 / ICE_CD) + '/s' : '' });
     rows.push({ label: 'Spark', cur: p.dmgLevel || 0, max: DMG_MAX, stat: fmtDmg(p.damage) });
     rows.push({ label: 'Rapid', cur: p.rateLevel || 0, max: RATE_MAX, stat: fmtNum(volley) + ' vol/s' });
     rows.push({ label: 'Sneak', cur: p.spdLevel || 0, max: SPD_MAX, stat: Math.round(p.speed) + ' spd' });
@@ -2648,25 +2753,21 @@
   // Fresh keys so old local Tomo/Slime ranks never pollute. Old keys cleared on load.
   const LB_KEYS = {
     survival: 'slimeBarrageV11bLbSurvival',
-    timed: 'slimeBarrageV11bLbTimed',
   };
+  // v1.20: Timed mode removed — its local cache key is cleared too (server untouched).
   const LB_OLD_KEYS = [
     'slimeBarrageLbSurvival',
     'slimeBarrageLbTimed',
+    'slimeBarrageV11bLbTimed',
   ];
   const LB_MAX = 10;
-  // HighScore API — NEW gameIds (NOT Tomo Crossroad gameId 17).
+  // HighScore API — Survival gameId 18 (NOT Tomo Crossroad gameId 17). Timed (19) retired in v1.20.
   const ONLINE_LB_BASE = 'https://api-leaderboard.qulyubis.biz.id';
   const ONLINE_LB = {
     survival: {
       gameId: 18,
       apiKey: 'game_uVnYcAsCBSrE5dg2mgw4rZ9a86m8UyucdGh1WZGwJl8',
       name: 'Slime Barrage Survival',
-    },
-    timed: {
-      gameId: 19,
-      apiKey: 'game_47_JyQeGogxX8sGHoLLQvvT7NAXrBgVLNukGA3pIcoI',
-      name: 'Slime Barrage Timed',
     },
   };
 
@@ -2677,10 +2778,7 @@
   })();
 
   function computeScore(mode, kills, time, level) {
-    if (mode === 'survival') {
-      return Math.floor(timeAlive) * 5 + kills * 12 + level * 20;
-    }
-    return kills * 10 + Math.floor(time) * 2 + level * 25;
+    return Math.floor(time) * 5 + kills * 12 + level * 20;
   }
 
   function loadBoard(mode) {
@@ -2872,7 +2970,6 @@
 
   function refreshRanksUI(boards) {
     renderRankList(el.rankSurvivalList, 'survival', boards && boards.survival);
-    renderRankList(el.rankTimedList, 'timed', boards && boards.timed);
     if (el.rankNameInput && playerName) el.rankNameInput.value = playerName;
   }
 
@@ -2881,21 +2978,16 @@
     const gen = (syncOnlineRanks._gen = (syncOnlineRanks._gen || 0) + 1);
     return Promise.all([
       fetchOnlineBoard('survival', LB_MAX).catch(err => ({ __err: err })),
-      fetchOnlineBoard('timed', LB_MAX).catch(err => ({ __err: err })),
-    ]).then(([surv, timed]) => {
+    ]).then(([surv]) => {
       if (gen !== syncOnlineRanks._gen) return;
       const survOk = !surv || !surv.__err;
-      const timedOk = !timed || !timed.__err;
       // v1.18: when online, the global server board is shown as-is (no local
       // entries mixed in); the local cache is only an offline fallback.
       const survMerged = survOk ? mergeBoards([], surv) : loadBoard('survival');
-      const timedMerged = timedOk ? mergeBoards([], timed) : loadBoard('timed');
       if (survOk) saveBoard('survival', survMerged);
-      if (timedOk) saveBoard('timed', timedMerged);
-      refreshRanksUI({ survival: survMerged, timed: timedMerged });
-      if (survOk && timedOk) setRankStatus('Online \u00b7 global synced (Survival #' + ONLINE_LB.survival.gameId + ' / Timed #' + ONLINE_LB.timed.gameId + ')', 'online');
-      else if (!survOk && !timedOk) setRankStatus('Offline \u00b7 showing last cached global board', 'offline');
-      else setRankStatus('Partial sync \u00b7 some boards offline', 'error');
+      refreshRanksUI({ survival: survMerged });
+      if (survOk) setRankStatus('Online \u00b7 global synced (Survival #' + ONLINE_LB.survival.gameId + ')', 'online');
+      else setRankStatus('Offline \u00b7 showing last cached global board', 'offline');
     });
   }
 
@@ -2940,7 +3032,7 @@
     // Amber win cue already played when Continue? prompt opened.
     if (won) { if (reason !== 'amber') AudioFX.win(); }
     else AudioFX.death();
-    const modeLabel = playMode === 'survival' ? 'Survival' : 'Timed';
+    const modeLabel = 'Survival';
     if (won) {
       if (playMode === 'survival' && reason === 'amber') {
         el.endTitle.textContent = 'VICTORY!';
@@ -2965,9 +3057,7 @@
     const submitted = submitScore(playMode, score, {
       kills: killCount, time: timeAlive, level: player.level,
     });
-    const formula = playMode === 'survival'
-      ? 'Score = time\u00d75 + kills\u00d712 + lv\u00d720'
-      : 'Score = kills\u00d710 + time\u00d72 + lv\u00d725';
+    const formula = 'Score = time\u00d75 + kills\u00d712 + lv\u00d720';
     const winNote = (won && playMode === 'survival' && reason === 'amber')
       ? '<div class="win-note">Amber Colossus King defeated!</div>'
       : '';
@@ -3181,6 +3271,109 @@
     }
   }
 
+  // ---------- v1.20 Zeus Hammer ----------
+  function mobsWithin(x, y, range) {
+    const r2 = range * range;
+    const out = [];
+    for (const e of enemies) {
+      const dx = e.x - x, dy = e.y - y;
+      if (dx * dx + dy * dy <= r2) out.push(e);
+    }
+    return out;
+  }
+
+  function makeBoltPath(x, y, lv) {
+    // Jagged polyline from high above down to the target (world coords).
+    const top = y - (150 + Math.random() * 40);
+    const segs = 7 + Math.min(4, lv >> 1);
+    const pts = [{ x: x + (Math.random() - 0.5) * 30, y: top }];
+    for (let k = 1; k < segs; k++) {
+      const t = k / segs;
+      const jitter = (1 - t * 0.6) * (10 + lv);
+      pts.push({ x: x + (Math.random() - 0.5) * 2 * jitter, y: top + (y - top) * t });
+    }
+    pts.push({ x, y });
+    return pts;
+  }
+
+  function zeusStrike() {
+    const lv = player.zeusLevel || 0;
+    const targets = shuffleInPlace(mobsWithin(player.x, player.y, ZEUS_RANGE));
+    if (!targets.length) return false;
+    const bolts = player.zeusBolts || lv;
+    const dmg = player.zeusDamage;
+    const glow = lv >= ZEUS_MAX;
+    for (let b = 0; b < bolts; b++) {
+      // Distinct mobs first; only repeat when there are fewer mobs than bolts.
+      const e = targets[b % targets.length];
+      e.hp -= dmg;
+      spawnDmgNum(e.x, e.y - e.r, dmg);
+      addParticles(e.x, e.y, '#ffffff', 5);
+      addParticles(e.x, e.y, '#a8d8ff', 4);
+      zeusBolts.push({
+        x: e.x, y: e.y, pts: makeBoltPath(e.x, e.y - Math.min(10, e.r * 0.3), lv),
+        life: 0.24, maxLife: 0.24,
+        width: 1.4 + lv * 0.45,
+        glow,
+      });
+    }
+    if (glow) skyFlash = 0.12;
+    AudioFX.zap();
+    return true;
+  }
+
+  function updateZeus(dt) {
+    if (!player.zeusLevel) return;
+    player.zeusCd = (player.zeusCd || 0) - dt;
+    if (player.zeusCd > 0) return;
+    // No mob in range → stay ready and strike as soon as one enters.
+    if (zeusStrike()) player.zeusCd = player.zeusCdMax || zeusCdFor(player.zeusLevel);
+    else player.zeusCd = 0;
+  }
+
+  // ---------- v1.20 Ice Grenades ----------
+  function updateIceGrenades(dt) {
+    if (player.iceLevel) {
+      player.iceCd = (player.iceCd || 0) - dt;
+      if (player.iceCd <= 0) {
+        let best = null, bestD = ICE_RANGE * ICE_RANGE;
+        for (const e of enemies) {
+          const d = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
+          if (d < bestD) { bestD = d; best = e; }
+        }
+        if (best) {
+          iceGrenades.push({ sx: player.x, sy: player.y - 6, tx: best.x, ty: best.y, t: 0, target: best, spin: 0 });
+          player.iceCd = ICE_CD;
+        } else {
+          player.iceCd = 0;
+        }
+      }
+    }
+    for (let i = iceGrenades.length - 1; i >= 0; i--) {
+      const g = iceGrenades[i];
+      // Home the landing spot on the (still alive) target so the catapult arc connects.
+      if (g.target && enemies.includes(g.target)) { g.tx = g.target.x; g.ty = g.target.y; }
+      g.t += dt / ICE_FLIGHT;
+      g.spin += dt * 12;
+      if (g.t >= 1) {
+        iceGrenades.splice(i, 1);
+        const base = player.iceFreeze || iceFreezeFor(player.iceLevel || 1);
+        for (const e of enemies) {
+          // Anything whose body overlaps the ~45px blast (half its radius counts) is frozen.
+          const reach = ICE_RADIUS + e.r * 0.5;
+          if ((e.x - g.tx) ** 2 + (e.y - g.ty) ** 2 > reach * reach) continue;
+          // Bosses (Monarchs / Kings) freeze for half the duration.
+          const dur = e.isBoss ? base * 0.5 : base;
+          e.frozenT = Math.max(e.frozenT || 0, dur);
+        }
+        iceBursts.push({ x: g.tx, y: g.ty, life: 0.45, maxLife: 0.45 });
+        addParticles(g.tx, g.ty, '#c8f4ff', 14);
+        addParticles(g.tx, g.ty, '#ffffff', 8);
+        AudioFX.freeze();
+      }
+    }
+  }
+
   function updateHpRegen(dt) {
     if (!player || player.hp >= player.maxHp) {
       if (player) player.hpRegenAcc = 0;
@@ -3214,16 +3407,12 @@
   function update(dt) {
     animT += dt;
     menuPulse += dt;
-    if (state === 'MENU' || state === 'LEVELUP' || state === 'PAUSED' || state === 'AMBER_CONTINUE' || state === 'GAMEOVER' || state === 'WIN') return;
+    if (state === 'MENU' || state === 'LEVELUP' || state === 'PAUSED' || state === 'AMBER_CONTINUE' || state === 'GAMEOVER' || state === 'WIN' || state === 'HOLD') return;
 
     timeAlive += dt;
     if (flashHurt > 0) flashHurt -= dt;
     if (player.invuln > 0) player.invuln -= dt;
 
-    if (playMode === 'timed' && timeAlive >= WIN_TIME_TIMED) {
-      showEnd(true);
-      return;
-    }
 
     let mx = 0, my = 0;
     if (keys['KeyW'] || keys['ArrowUp']) my -= 1;
@@ -3297,6 +3486,8 @@
     }
     updateOrbitOrbs(dt);
     updateFairies(dt);
+    updateZeus(dt);
+    updateIceGrenades(dt);
     updateHpRegen(dt);
 
     if (updateBossBlasts(dt)) return;
@@ -3323,18 +3514,18 @@
     if (spawnTimer <= 0) {
       const scale = difficultyScale();
       const lateMul = lateSpawnMul();
-      const density = 1 + Math.floor(timeAlive / (playMode === 'survival' ? 14 : 20));
-      const n = Math.min(playMode === 'survival' ? 8 : 6, density + (Math.random() * 2) | 0);
+      const density = 1 + Math.floor(timeAlive / 14);
+      const n = Math.min(8, density + (Math.random() * 2) | 0);
       spawnBurst(n);
-      const baseInt = playMode === 'survival' ? 1.55 : 1.8;
-      const ramp = playMode === 'survival' ? 0.012 : 0.008;
-      const interval = Math.max(playMode === 'survival' ? 0.38 : 0.55, baseInt - timeAlive * ramp)
+      const baseInt = 1.55;
+      const ramp = 0.012;
+      const interval = Math.max(0.38, baseInt - timeAlive * ramp)
         / Math.min(1.6, scale)
         / NORMAL_ELITE_SPAWN_RATE_MUL
         / lateMul; // v1.18 late ramp (+2%/min from 9:00)
       spawnTimer = interval;
       cleanupFarEntities();
-      const cap = Math.round((playMode === 'survival' ? 140 : 120) * lateMul);
+      const cap = Math.round(140 * lateMul);
       if (enemies.length > cap) {
         // Prefer dropping non-boss fodder so the Monarch is never culled.
         let need = enemies.length - cap;
@@ -3370,7 +3561,7 @@
 
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
-      e.frameT += dt;
+      if (!(e.frozenT > 0)) e.frameT += dt;
       if (e.frameT > 0.18) { e.frameT = 0; e.frame = (e.frame + 1) % 4; }
 
       if (e.hp <= 0) {
@@ -3393,7 +3584,7 @@
           AudioFX.kill();
           syncBossBgm(true);
           // Survival: Amber defeat → Continue? prompt (endless) or claim victory.
-          if (wasAmberKing && playMode === 'survival') {
+          if (wasAmberKing) {
             showAmberContinue();
             return;
           }
@@ -3408,16 +3599,23 @@
       const dx = player.x - e.x, dy = player.y - e.y;
       const d = Math.hypot(dx, dy) || 1;
       const stack = e.isBoss ? 1 : minuteStackMul();
-      const spd = (e.baseSpeed != null ? e.baseSpeed : e.speed) * mobSpeedMul() * stack;
+      // v1.20: normal + elite also get +2.5%/min speed from 4:00 (on top of the +1%/min stack).
+      const ramp = e.isBoss ? 1 : mobRampSpeedMul();
+      const spd = (e.baseSpeed != null ? e.baseSpeed : e.speed) * mobSpeedMul() * stack * ramp;
       e.speed = spd;
       e.damage = (e.baseDamage != null ? e.baseDamage : e.damage) * (e.isBoss ? 1 : stack);
-      e.x += (dx / d) * spd * dt;
-      e.y += (dy / d) * spd * dt;
-      // v1.18: Monarchs + Big Kings pass through trees/bushes (same speed).
-      if (!e.isBoss) resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
+      // v1.20 Ice Grenades: frozen mobs don't move (and bosses' blast timers pause).
+      const frozen = e.frozenT > 0;
+      if (frozen) e.frozenT -= dt;
+      if (!frozen) {
+        e.x += (dx / d) * spd * dt;
+        e.y += (dy / d) * spd * dt;
+        // v1.18: Monarchs + Big Kings pass through trees/bushes (same speed).
+        if (!e.isBoss) resolveObstacleCircle(e, Math.max(5, e.r * 0.55));
+      }
 
       // Ranged blast timer is independent for every Monarch and Big King.
-      if (e.isBoss && (e.bossKind === 'monarch' || e.bossKind === 'king')) {
+      if (!frozen && e.isBoss && (e.bossKind === 'monarch' || e.bossKind === 'king')) {
         const interval = e.bossKind === 'monarch' ? MONARCH_BLAST_INTERVAL : KING_BLAST_INTERVAL;
         e.blastCd = (e.blastCd == null ? interval : e.blastCd) - dt;
         if (e.blastCd <= 0) {
@@ -3471,6 +3669,15 @@
       d.life -= dt;
       if (d.life <= 0) dmgNums.splice(i, 1);
     }
+    for (let i = zeusBolts.length - 1; i >= 0; i--) {
+      zeusBolts[i].life -= dt;
+      if (zeusBolts[i].life <= 0) zeusBolts.splice(i, 1);
+    }
+    for (let i = iceBursts.length - 1; i >= 0; i--) {
+      iceBursts[i].life -= dt;
+      if (iceBursts[i].life <= 0) iceBursts.splice(i, 1);
+    }
+    if (skyFlash > 0) skyFlash = Math.max(0, skyFlash - dt);
 
     syncHud();
   }
@@ -3581,6 +3788,23 @@
     blit(ctx, o.spr, s.x - o.ox, s.y - o.oy);
   }
 
+  // v1.20: cached icy-blue tinted copy of a sprite frame (for frozen mobs).
+  const iceTintCache = new WeakMap();
+  function iceTinted(fr) {
+    let c = iceTintCache.get(fr);
+    if (c) return c;
+    c = document.createElement('canvas');
+    c.width = fr.width; c.height = fr.height;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.drawImage(fr, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(150, 215, 255, 0.62)';
+    g.fillRect(0, 0, c.width, c.height);
+    iceTintCache.set(fr, c);
+    return c;
+  }
+
   function drawOneEnemy(e) {
     const s = worldToScreen(e.x, e.y);
     if (s.x < -80 || s.y < -80 || s.x > W + 80 || s.y > H + 80) return;
@@ -3588,7 +3812,24 @@
     const fr = frames[e.frame % frames.length];
     const ox = fr.width / 2;
     const oy = fr.height - 2;
-    blit(ctx, fr, s.x - ox, s.y - oy);
+    const frozen = e.frozenT > 0;
+    blit(ctx, frozen ? iceTinted(fr) : fr, s.x - ox, s.y - oy);
+    if (frozen) {
+      // small ice shards around the frozen body
+      const r = Math.max(6, Math.min(40, e.r * 0.8));
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, 0.5 + e.frozenT);
+      for (let k = 0; k < 4; k++) {
+        const ang = k * 1.7 + 0.4;
+        const cx = s.x + Math.cos(ang) * r * 0.9;
+        const cy = s.y - r * 0.6 + Math.sin(ang) * r * 0.55;
+        ctx.fillStyle = k % 2 ? '#e8fbff' : '#9ee6ff';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 4); ctx.lineTo(cx + 2.5, cy); ctx.lineTo(cx, cy + 4); ctx.lineTo(cx - 2.5, cy);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
     if (e.isBoss || e.isKing || e.hp < e.maxHp) {
       const bw = e.isBoss ? 84 : (e.isKing ? 22 : 14);
       const bh = e.isBoss ? 5 : 3;
@@ -3772,10 +4013,33 @@
     }
   }
 
+  function drawGoldShot(p, s) {
+    const pulse = 1 + Math.sin(animT * 18) * 0.08;
+    const R = p.r * pulse;
+    const g0 = ctx.createRadialGradient(s.x, s.y, R * 0.2, s.x, s.y, R * 1.9);
+    g0.addColorStop(0, 'rgba(255, 250, 220, 0.95)');
+    g0.addColorStop(0.35, 'rgba(255, 210, 80, 0.75)');
+    g0.addColorStop(1, 'rgba(255, 170, 40, 0)');
+    ctx.beginPath(); ctx.fillStyle = g0; ctx.arc(s.x, s.y, R * 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.fillStyle = '#ffd24a'; ctx.arc(s.x, s.y, R * 0.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.strokeStyle = '#fff4c0'; ctx.lineWidth = 2; ctx.arc(s.x, s.y, R * 0.8, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.fillStyle = '#ffffff'; ctx.arc(s.x - R * 0.25, s.y - R * 0.28, R * 0.26, 0, Math.PI * 2); ctx.fill();
+    // short trail
+    const sp = Math.hypot(p.vx, p.vy) || 1;
+    for (let k = 1; k <= 3; k++) {
+      ctx.globalAlpha = 0.35 - k * 0.09;
+      ctx.beginPath(); ctx.fillStyle = '#ffcc40';
+      ctx.arc(s.x - (p.vx / sp) * k * R * 0.8, s.y - (p.vy / sp) * k * R * 0.8, R * (0.7 - k * 0.12), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function drawProjectiles() {
     for (const p of projectiles) {
       const s = worldToScreen(p.x, p.y);
-      if (p.fairy) blit(ctx, fairyBoltSprite, s.x - 2, s.y - 2);
+      if (p.gold) drawGoldShot(p, s);
+      else if (p.fairy) blit(ctx, fairyBoltSprite, s.x - 2, s.y - 2);
       else if (p.blueFire) blit(ctx, projSpriteBlue, s.x - 4, s.y - 4);
       else blit(ctx, projSprite, s.x - 3, s.y - 3);
     }
@@ -3819,12 +4083,89 @@
     ctx.globalAlpha = 1;
   }
 
-  /** Small edge-of-view arrows pointing at off-screen Pink-Mint Monarchs. */
+  // v1.20: Zeus bolts, Ice grenades/bursts, sky flash.
+  function drawZeusAndIce() {
+    for (const b of zeusBolts) {
+      const a = Math.max(0, b.life / b.maxLife);
+      ctx.save();
+      ctx.lineJoin = 'miter';
+      ctx.lineCap = 'round';
+      if (b.glow) {
+        ctx.shadowColor = 'rgba(150, 200, 255, 0.95)';
+        ctx.shadowBlur = 14;
+      }
+      const path = () => {
+        ctx.beginPath();
+        b.pts.forEach((pt, i) => {
+          const s = worldToScreen(pt.x, pt.y);
+          if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+        });
+      };
+      ctx.strokeStyle = b.glow ? `rgba(140, 200, 255, ${0.55 * a})` : `rgba(180, 210, 255, ${0.45 * a})`;
+      ctx.lineWidth = b.width + (b.glow ? 5 : 2.5);
+      path(); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 + 0.4 * a})`;
+      ctx.lineWidth = b.width;
+      path(); ctx.stroke();
+      // impact flash
+      const s = worldToScreen(b.x, b.y);
+      ctx.shadowBlur = b.glow ? 18 : 0;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.7 * a})`;
+      ctx.arc(s.x, s.y - 4, (b.glow ? 9 : 6) * (0.6 + a * 0.6), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    for (const g of iceGrenades) {
+      const t = Math.min(1, g.t);
+      const wx = g.sx + (g.tx - g.sx) * t;
+      const wy = g.sy + (g.ty - g.sy) * t - 70 * 4 * t * (1 - t);
+      const sh = worldToScreen(g.sx + (g.tx - g.sx) * t, g.sy + (g.ty - g.sy) * t);
+      ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.ellipse(sh.x, sh.y + 2, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
+      const s = worldToScreen(wx, wy);
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(g.spin);
+      ctx.fillStyle = '#9ee6ff'; ctx.fillRect(-4, -4, 8, 8);
+      ctx.fillStyle = '#e8fbff'; ctx.fillRect(-4, -4, 4, 3);
+      ctx.strokeStyle = '#3a8ab8'; ctx.lineWidth = 1; ctx.strokeRect(-4, -4, 8, 8);
+      ctx.restore();
+    }
+    for (const b of iceBursts) {
+      const a = Math.max(0, b.life / b.maxLife);
+      const s = worldToScreen(b.x, b.y);
+      const R = ICE_RADIUS * (1.05 - a * 0.45);
+      ctx.save();
+      ctx.beginPath(); ctx.fillStyle = `rgba(160, 225, 255, ${0.22 * a})`; ctx.arc(s.x, s.y, R, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.strokeStyle = `rgba(230, 250, 255, ${0.85 * a})`; ctx.lineWidth = 2; ctx.arc(s.x, s.y, R, 0, Math.PI * 2); ctx.stroke();
+      for (let k = 0; k < 8; k++) {
+        const ang = (k / 8) * Math.PI * 2;
+        ctx.fillStyle = `rgba(255,255,255,${a})`;
+        ctx.fillRect(s.x + Math.cos(ang) * R * 0.8 - 1, s.y + Math.sin(ang) * R * 0.8 - 1, 3, 3);
+      }
+      ctx.restore();
+    }
+    if (skyFlash > 0) {
+      ctx.fillStyle = `rgba(220, 235, 255, ${skyFlash * 0.9})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // v1.20: arrow colors per boss skin (Monarch pink-mint + each King's own palette).
+  const BOSS_ARROW_STYLES = {
+    monarch: { fill: 'rgba(245, 160, 192, 0.92)', stroke: 'rgba(232, 200, 74, 0.95)', tip: '#7dcea0', scale: 1 },
+    frost: { fill: 'rgba(126, 240, 212, 0.95)', stroke: 'rgba(200, 240, 255, 0.95)', tip: '#2a9aaa', scale: 1.3 },
+    crown: { fill: 'rgba(154, 106, 216, 0.95)', stroke: 'rgba(232, 200, 74, 0.95)', tip: '#e0c8ff', scale: 1.3 },
+    amber: { fill: 'rgba(240, 160, 48, 0.95)', stroke: 'rgba(255, 232, 160, 0.95)', tip: '#c05a10', scale: 1.3 },
+  };
+
+  /** Small edge-of-view arrows pointing at off-screen Monarchs and Big Kings (skin colored). */
   function drawMonarchIndicators() {
     const margin = 14;
     const vw = W, vh = H;
     for (const e of enemies) {
-      if (!e.isBoss || e.bossKind !== 'monarch') continue;
+      if (!e.isBoss || (e.bossKind !== 'monarch' && e.bossKind !== 'king')) continue;
+      const st = BOSS_ARROW_STYLES[e.bossKind === 'king' ? e.kingId : 'monarch'] || BOSS_ARROW_STYLES.monarch;
       const s = worldToScreen(e.x, e.y);
       const onScreen = s.x >= -e.r && s.x <= vw + e.r && s.y >= -e.r && s.y <= vh + e.r;
       if (onScreen) continue;
@@ -3847,45 +4188,43 @@
       ctx.save();
       ctx.translate(ax, ay);
       ctx.rotate(ang);
+      ctx.scale(st.scale, st.scale);
       ctx.beginPath();
       ctx.moveTo(10, 0);
       ctx.lineTo(-6, 7);
       ctx.lineTo(-3, 0);
       ctx.lineTo(-6, -7);
       ctx.closePath();
-      ctx.fillStyle = 'rgba(245, 160, 192, 0.92)';
+      ctx.fillStyle = st.fill;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(232, 200, 74, 0.95)';
+      ctx.strokeStyle = st.stroke;
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      // tiny mint tip
+      // tiny accent tip
       ctx.beginPath();
       ctx.arc(10, 0, 2.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#7dcea0';
+      ctx.fillStyle = st.tip;
       ctx.fill();
       ctx.restore();
     }
   }
 
   function drawMenuBackdrop() {
-
     ctx.fillStyle = '#0c121c';
     ctx.fillRect(0, 0, W, H);
+    // v1.20: drifting background slimes spread over the full (portrait-tall) view.
     const cols = ['mint', 'pink', 'yellow', 'purple'];
-    const decoCount = Math.max(10, Math.min(22, Math.round(10 * H / BASE_H)));
-    const band = Math.max(60, (H - 100) / 3);
-    for (let i = 0; i < decoCount; i++) {
-      const c = cols[i % 4];
-      const fr = slimeFrames[c][Math.floor(animT * 4 + i) % 4];
-      const x = 30 + (i * 47) % (W - 40);
-      const y = 40 + Math.sin(animT * 1.5 + i) * 8 + (i % 3) * band;
-      ctx.globalAlpha = 0.55;
+    const count = Math.max(12, Math.min(30, Math.round(14 * (W * H) / (BASE_W * BASE_H))));
+    for (let i = 0; i < count; i++) {
+      const hx = ((i * 0.6180339) % 1), hy = ((i * 0.7548776 + 0.13) % 1);
+      const spd = 6 + (i % 5) * 3;
+      const x = ((hx * (W + 60) + animT * spd * (i % 2 ? 1 : -1)) % (W + 60) + (W + 60)) % (W + 60) - 30;
+      const y = 16 + hy * (H - 40) + Math.sin(animT * 1.3 + i) * 6;
+      const fr = slimeFrames[cols[i % 4]][Math.floor(animT * 4 + i) % 4];
+      ctx.globalAlpha = 0.4 + (i % 3) * 0.12;
       blit(ctx, fr, x, y);
-      ctx.globalAlpha = 1;
     }
-    // Keep hero near the visual center of the taller playfield.
-    const heroY = Math.max(70, Math.min(H - 120, Math.round(H * 0.26)));
-    blit(ctx, heroFront, W / 2 - 20, heroY, 40, 56);
+    ctx.globalAlpha = 1;
   }
 
   function draw() {
@@ -3909,6 +4248,7 @@
         drawOrbitAndLaser();
         drawProjectiles(); // sparks pass through foliage; drawn above for readability
         drawBossBlasts(); // large skin-colored boss orbs above sparks
+        drawZeusAndIce();
         drawParticles();
         drawDmgNums();
         drawMonarchIndicators();
@@ -3958,7 +4298,6 @@
     MONARCH_INTERVAL,
     KING_SPAWN_START,
     KING_SPAWN_INTERVAL,
-    WIN_TIME_TIMED,
     SURVIVAL_DIFF_START,
     SURVIVAL_DIFF_RAMP,
     SURVIVAL_DIFF_RAMP_START_T,
@@ -4007,6 +4346,53 @@
       syncHud();
     },
     obstacleCount: () => obstacles.length,
+    // v1.20 verification hooks (headless checks / screenshots).
+    v120: {
+      grant: (id, n) => {
+        const u = UPGRADE_DEFS.find(x => x.id === id);
+        if (!u || !player) return null;
+        for (let i = 0; i < (n || 1); i++) u.apply(player);
+        syncHud();
+        return { id, eligible: upgradeEligible(u), maxed: isUpgradeMaxed(u) };
+      },
+      setLevel: (lv) => { if (player) { player.level = lv; syncHud(); } return player && player.level; },
+      eligibleIds: () => UPGRADE_DEFS.filter(upgradeEligible).filter(u => !isUpgradeMaxed(u)).map(u => u.id),
+      player: () => player && ({
+        damage: player.damage, fireCdMax: player.fireCdMax, multishot: player.multishot, goldShot: player.goldShot,
+        pierce: player.pierce, zeusLevel: player.zeusLevel, zeusCdMax: player.zeusCdMax, zeusDamage: player.zeusDamage,
+        zeusBolts: player.zeusBolts, iceLevel: player.iceLevel, iceFreeze: player.iceFreeze, level: player.level,
+      }),
+      speedRampAt: (t) => { const sv = timeAlive; timeAlive = t; const m = mobRampSpeedMul(); timeAlive = sv; return m; },
+      fireNow: () => { fireAtNearest(); return projectiles.filter(p => p.gold).map(p => ({ r: p.r, damage: p.damage, pierce: p.pierce })); },
+      zeusNow: () => { if (!player.zeusLevel) return false; player.zeusCd = 0; updateZeus(0); return zeusBolts.map(b => ({ glow: b.glow, width: b.width })); },
+      iceNow: () => { if (!player.iceLevel) return false; player.iceCd = 0; updateIceGrenades(0); return iceGrenades.length; },
+      frozen: () => enemies.filter(e => e.frozenT > 0).map(e => ({ boss: !!e.isBoss, t: +e.frozenT.toFixed(2) })),
+      enemyXY: () => enemies.slice(0, 5).map(e => ({ x: e.x, y: e.y, f: e.frozenT || 0 })),
+      putKingOffscreen: () => {
+        const k = enemies.find(e => e.isBoss && e.bossKind === 'king');
+        if (k) { k.x = player.x + 700; k.y = player.y - 200; }
+        return !!k;
+      },
+      clusterMobsNear: (dx, dy) => {
+        let i = 0;
+        for (const e of enemies) {
+          if (e.isBoss) {
+            if (e.bossKind === 'king' && e.kingId === 'crown') { e.x = player.x + dx + 30; e.y = player.y + dy + 40; }
+            else if (e.bossKind === 'monarch') { e.x = player.x - 500 - i * 40; e.y = player.y + 420; }
+            continue;
+          }
+          if (i < 10) { e.x = player.x + dx + (i % 4) * 12 - 18; e.y = player.y + dy + ((i / 4) | 0) * 12 - 12; }
+          else { const a = i * 2.4; e.x = player.x + Math.cos(a) * (240 + (i % 5) * 20); e.y = player.y + Math.sin(a) * (240 + (i % 5) * 20); }
+          i++;
+        }
+        return i;
+      },
+      setInvuln: () => { if (player) player.invuln = 9999; },
+      testMode: () => { if (!player) return null; player.invuln = 9999; player.xpNext = 1e9; upgradeChoices = []; state = 'PLAYING'; showOnly('hud'); return state; },
+      // Freeze the simulation (world keeps drawing) so a screenshot can catch short effects.
+      hold: (on) => { if (on && state === 'PLAYING') state = 'HOLD'; else if (!on && state === 'HOLD') state = 'PLAYING'; return state; },
+      state: () => ({ state, zeusBolts: zeusBolts.length, grenades: iceGrenades.length, bursts: iceBursts.length }),
+    },
     // v1.18 verification hooks (read-mostly; used by headless checks).
     v118: {
       lateSpawnMulAt: (t) => { const sv = timeAlive; timeAlive = t; const m = lateSpawnMul(); timeAlive = sv; return m; },

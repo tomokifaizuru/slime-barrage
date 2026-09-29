@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Slime Barrage" />
-  <title>Slime Barrage v1.19</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1.19" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=1.19" />
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=1.19" />
-  <link rel="stylesheet" href="style.css?v=1.19" />
+  <title>Slime Barrage v1.20</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=1.20" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png?v=1.20" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=1.20" />
+  <link rel="stylesheet" href="style.css?v=1.20" />
 </head>
 <body>
   <div id="stage">
@@ -33,7 +33,7 @@
             <div id="runChips" class="run-chips hidden" aria-live="polite"></div>
           </div>
           <div class="hud-center">
-            <div id="timer" class="timer">6:00</div>
+            <div id="timer" class="timer">0:00</div>
           </div>
           <div class="hud-right">
             <div id="kills" class="kills">Kills 0</div>
@@ -49,67 +49,79 @@
           </button>
         </div>
 
-        <div id="menu" class="panel">
-          <h1 class="title">
-            <span class="title-text">SLIME BARRAGE</span>
-          </h1>
-          <p class="subtitle">auto-survivor · original IP</p>
-          <div class="mode-btns">
-            <button type="button" id="playSurvivalBtn" class="btn mode-btn">SURVIVAL</button>
-            <button type="button" id="playTimedBtn" class="btn primary mode-btn">TIMED 6:00</button>
+        <div id="menu" class="panel menu-panel">
+          <div class="menu-layout">
+            <div class="menu-logo">
+              <img class="logo-img" src="assets/logo-neon-blast.png?v=1.20" alt="Slime Barrage" draggable="false" />
+            </div>
+            <div class="menu-actions">
+              <p class="menu-tagline">Auto-fire survivor · outlast the slime waves · topple the Kings</p>
+              <button type="button" id="playBtn" class="btn primary play-btn"><span class="play-icon" aria-hidden="true">▶</span> PLAY</button>
+              <div class="menu-secondary">
+                <button type="button" id="ranksBtn" class="btn menu-sec"><span aria-hidden="true">🏆</span> Rankings</button>
+                <button type="button" id="optionsBtn" class="btn menu-sec"><span aria-hidden="true">⚙</span> Options</button>
+                <button type="button" id="howBtn" class="btn menu-sec menu-sec-wide"><span aria-hidden="true">❔</span> How to Play</button>
+              </div>
+              <p id="bestLine" class="best-line">Survive the slime waves · defeat the Kings</p>
+            </div>
           </div>
-          <p class="mode-hint"><span class="mode-tag">Survival</span> defeat Amber for Continue? / claim win · <span class="mode-tag">Timed</span> win at 6:00</p>
-          <div class="menu-audio">
-            <div class="vol-row">
-              <label for="musicVol">Music</label>
-              <input type="range" id="musicVol" min="0" max="100" value="100" aria-label="Music volume" />
-              <span id="musicVolVal" class="vol-val">100</span>
+          <p class="version-label">v1.20</p>
+        </div>
+
+        <div id="options" class="panel dim hidden">
+          <div class="sheet">
+            <h2 class="panel-title">OPTIONS</h2>
+            <p class="panel-sub">Saved on this device</p>
+            <div class="menu-audio options-audio">
+              <div class="vol-row">
+                <label for="musicVol">Music</label>
+                <input type="range" id="musicVol" min="0" max="100" value="100" aria-label="Music volume" />
+                <span id="musicVolVal" class="vol-val">100</span>
+              </div>
+              <div class="vol-row">
+                <label for="sfxVol">SFX</label>
+                <input type="range" id="sfxVol" min="0" max="100" value="100" aria-label="SFX volume" />
+                <span id="sfxVolVal" class="vol-val">100</span>
+              </div>
+              <div class="vol-row zoom-row">
+                <label for="zoomSlider">Zoom</label>
+                <span class="zoom-edge" aria-hidden="true">Far</span>
+                <input type="range" id="zoomSlider" min="1" max="4" step="0.01" value="1.76" aria-label="Portrait camera zoom" />
+                <span class="zoom-edge" aria-hidden="true">Close</span>
+                <span id="zoomVal" class="vol-val">1.76</span>
+              </div>
+              <p class="options-note">Zoom applies to portrait (phone) view.</p>
+              <button type="button" id="muteBtnMenu" class="mute-btn options-mute" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
             </div>
-            <div class="vol-row">
-              <label for="sfxVol">SFX</label>
-              <input type="range" id="sfxVol" min="0" max="100" value="100" aria-label="SFX volume" />
-              <span id="sfxVolVal" class="vol-val">100</span>
-            </div>
-            <div class="vol-row zoom-row">
-              <label for="zoomSlider">Zoom</label>
-              <span class="zoom-edge" aria-hidden="true">Far</span>
-              <input type="range" id="zoomSlider" min="1" max="4" step="0.01" value="1.76" aria-label="Portrait camera zoom" />
-              <span class="zoom-edge" aria-hidden="true">Close</span>
-              <span id="zoomVal" class="vol-val">1.76</span>
-            </div>
-            <button type="button" id="muteBtnMenu" class="mute-btn" title="Mute / unmute" aria-label="Mute">🔊 Sound</button>
+            <button type="button" id="optionsBackBtn" class="btn primary">Back</button>
           </div>
-          <button type="button" id="ranksBtn" class="btn ranks-btn">RANKINGS</button>
-          <p class="version-label">v1.19</p>
-          <p class="hint">WASD / Arrows · auto-fires · Wipe (starts on CD)</p>
-          <p class="hint">Kings every 4:00 · Barrier Shield · Multi/Spark/Rapid 8 · Sneak 6 · Orbit 10 · Laser 10 · Fairy 8 · Magnet 8</p>
-          <p class="hint score-hint">Ranks: GLOBAL fresh boards · Survival (time×5+kills×12+lv×20) · Timed (kills×10+time×2+lv×25)</p>
+        </div>
+
+        <div id="how" class="panel dim hidden">
+          <div class="sheet how-sheet">
+            <h2 class="panel-title">HOW TO PLAY</h2>
+            <ul class="how-list">
+              <li><b>Move</b> — WASD / Arrows, or drag anywhere on touch</li>
+              <li><b>Auto-fire</b> — your sparks target the nearest slime</li>
+              <li><b>Level up</b> — grab XP gems, pick 1 of 3 upgrades (1 / 2 / 3)</li>
+              <li><b>Wipe</b> — Q / F or the 💥 button clears mobs (120s cooldown)</li>
+              <li><b>Bosses</b> — Monarchs every 3:00 · Big Kings every 4:00 · beat Amber to win</li>
+              <li><b>Evolve</b> — Multishot 5 at Lv 15 unlocks <b>Gold Big Shot</b></li>
+              <li><b>Pause</b> — Esc / P or ⏸ · <b>Mute</b> — M</li>
+            </ul>
+            <p class="how-score">Score = time×5 + kills×12 + lv×20 · global Survival board</p>
+            <button type="button" id="howBackBtn" class="btn primary">Back</button>
+          </div>
         </div>
 
         <div id="pause" class="panel dim hidden">
           <h2 class="panel-title">PAUSED</h2>
           <p class="panel-sub">Tap resume or press Esc / P</p>
-          <div class="menu-audio pause-audio">
-            <div class="vol-row">
-              <label for="musicVolPause">Music</label>
-              <input type="range" id="musicVolPause" min="0" max="100" value="100" aria-label="Music volume" />
-              <span id="musicVolPauseVal" class="vol-val">100</span>
-            </div>
-            <div class="vol-row">
-              <label for="sfxVolPause">SFX</label>
-              <input type="range" id="sfxVolPause" min="0" max="100" value="100" aria-label="SFX volume" />
-              <span id="sfxVolPauseVal" class="vol-val">100</span>
-            </div>
-            <div class="vol-row zoom-row">
-              <label for="zoomSliderPause">Zoom</label>
-              <span class="zoom-edge" aria-hidden="true">Far</span>
-              <input type="range" id="zoomSliderPause" min="1" max="4" step="0.01" value="1.76" aria-label="Portrait camera zoom" />
-              <span class="zoom-edge" aria-hidden="true">Close</span>
-              <span id="zoomValPause" class="vol-val">1.76</span>
-            </div>
+          <div class="pause-btns">
+            <button type="button" id="resumeBtn" class="btn primary">RESUME</button>
+            <button type="button" id="pauseOptionsBtn" class="btn"><span aria-hidden="true">⚙</span> Options</button>
+            <button type="button" id="pauseMenuBtn" class="btn">Back to menu</button>
           </div>
-          <button type="button" id="resumeBtn" class="btn primary">RESUME</button>
-          <button type="button" id="pauseMenuBtn" class="btn">Back to menu</button>
         </div>
 
         <div id="levelup" class="panel dim hidden">
@@ -137,23 +149,18 @@
 
         <div id="ranks" class="panel dim hidden">
           <h2 class="panel-title">RANKINGS</h2>
-          <p class="panel-sub">Global online boards · top 10 each · Survival | Timed</p>
+          <p class="panel-sub">Global Survival board · top 10</p>
           <p id="rankStatus" class="rank-status" aria-live="polite"></p>
           <div class="rank-name-row">
             <label for="rankNameInput">Name</label>
             <input type="text" id="rankNameInput" maxlength="16" placeholder="Player" autocomplete="nickname" />
             <button type="button" id="rankSaveNameBtn" class="btn small">Save</button>
           </div>
-          <div class="rank-columns">
+          <div class="rank-columns single">
             <div class="rank-col">
               <h3 class="rank-col-title survival">Survival</h3>
               <p class="rank-formula">time×5 + kills×12 + lv×20</p>
               <ol id="rankSurvivalList" class="rank-list"></ol>
-            </div>
-            <div class="rank-col">
-              <h3 class="rank-col-title timed">Timed</h3>
-              <p class="rank-formula">kills×10 + time×2 + lv×25</p>
-              <ol id="rankTimedList" class="rank-list"></ol>
             </div>
           </div>
           <button type="button" id="ranksBackBtn" class="btn primary">Back</button>
@@ -165,7 +172,7 @@
       <div id="stickBase"><div id="stickKnob"></div></div>
     </div>
   </div>
-  <script src="game.js?v=1.19"></script>
+  <script src="game.js?v=1.20"></script>
 
 </body>
 </html>
