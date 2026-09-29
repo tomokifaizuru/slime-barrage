@@ -1,5 +1,5 @@
 /**
- * Slime Barrage v1.16
+ * Slime Barrage v1.17
  * Original IP — casual pink-hair hoodie girl vs cute colorful slimes.
  * Canvas world sprites + HTML/CSS overlays for crisp UI text.
  * HTMLAudio BGM (Moonlit / Nightfall Monarch / Throne Breakers Kings).
@@ -23,7 +23,7 @@
   // Legacy finite meadow size kept only as a conceptual tile scale for props.
   const WORLD_W = 2400, WORLD_H = 2400;
   const WIN_TIME_TIMED = 360; // Timed mode: 6 minutes
-  const VERSION = 'v1.16';
+  const VERSION = 'v1.17';
   const MONARCH_INTERVAL = 180; // 2 Monarchs every 3 minutes
   const MONARCH_COUNT = 2;
   const MONARCH_SIZE_MUL = 1.2; // −20% vs prior v1.1 (was 1.5 → r/frames ×0.8)
@@ -2488,24 +2488,71 @@
     return '<span class="lvl-chip' + (maxed ? ' maxed' : '') + (cur > 0 ? ' on' : '') + '">' + iconHtml + txt + '</span>';
   }
 
+  // v1.17: chip rows (shared by level-up status + run HUD). `stat` = live readout
+  // shown in the column right of each run chip (empty until the weapon is owned).
+  const LASER_TELEGRAPH = 0.35; // must match laser telegraph in update()
+  const OMNI_TELEGRAPH = 0.28;  // must match omni telegraph in update()
+  const ORB_HIT_CD = 0.18;      // per-enemy orb hit throttle (updateOrbitOrbs)
+  function fmtNum(v) {
+    if (!isFinite(v)) return '0';
+    if (v >= 100) return String(Math.round(v));
+    if (v >= 10) return String(Math.round(v * 10) / 10).replace(/\.0$/, '');
+    if (v >= 1) return v.toFixed(1);
+    return v.toFixed(2).replace(/0$/, '');
+  }
+  function fmtDmg(v) {
+    return (Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : v.toFixed(1)) + ' dmg';
+  }
+  function chipRows() {
+    if (!player) return [];
+    const p = player;
+    const omniUnlocked = (p.laserLevel || 0) >= OMNI_UNLOCK_LASER;
+    const volley = 1 / p.fireCdMax; // main spark volleys per second
+    const shots = Math.min(MULTISHOT_MAX, p.multishot);
+    const rows = [];
+    // Main spark weapon (always): damage per spark + total sparks/s (multishot × volleys/s)
+    rows.push({ label: 'Multi', cur: p.multishot, max: MULTISHOT_MAX,
+      stat: fmtDmg(p.damage) + ' · ' + fmtNum(shots * volley) + '/s' });
+    rows.push({ label: 'Pierce', cur: p.pierce || 0, max: PIERCE_MAX,
+      stat: 'hits ' + ((p.pierce || 0) + 1) });
+    const lv = p.laserLevel || 0;
+    rows.push({ label: 'Laser', cur: lv, max: LASER_MAX_LEVEL,
+      stat: lv > 0 ? fmtDmg(p.laserDamage) + ' · ' + fmtNum(1 / (p.laserCdMax + LASER_TELEGRAPH)) + '/s' : '' });
+    const orbs = p.orbitOrbs || 0;
+    rows.push({ label: 'Orbit', cur: orbs, max: ORBIT_MAX,
+      stat: orbs > 0 ? fmtDmg(18 + p.level * 0.6) + ' · ' + fmtNum(1 / ORB_HIT_CD) + '/s' : '' });
+    const olv = p.omniLevel || 0;
+    rows.push(omniUnlocked
+      ? { label: 'Omni', cur: olv, max: OMNI_MAX_LEVEL,
+          stat: olv > 0 ? fmtDmg(p.omniDamage) + ' ×' + (p.omniRays || 8) + ' · ' + fmtNum(1 / (p.omniCdMax + OMNI_TELEGRAPH)) + '/s' : '' }
+      : { label: 'Omni', cur: 0, max: OMNI_MAX_LEVEL, locked: true, stat: '' });
+    const flv = p.fairyLevel || 0;
+    rows.push({ label: 'Fairy', cur: flv, max: FAIRY_MAX,
+      stat: flv > 0 ? fmtDmg(p.fairyDamage) + ' · ' + fmtNum((p.fairyCount || 1) / (p.fairyCdMax || 0.35)) + '/s' : '' });
+    rows.push({ label: 'Spark', cur: p.dmgLevel || 0, max: DMG_MAX, stat: fmtDmg(p.damage) });
+    rows.push({ label: 'Rapid', cur: p.rateLevel || 0, max: RATE_MAX, stat: fmtNum(volley) + ' vol/s' });
+    rows.push({ label: 'Sneak', cur: p.spdLevel || 0, max: SPD_MAX, stat: Math.round(p.speed) + ' spd' });
+    rows.push({ label: 'HP', cur: p.maxHp, max: MAX_HP_CAP, stat: 'regen ' + fmtNum(1 / HP_REGEN_INTERVAL) + '/s' });
+    rows.push({ label: 'Shield', cur: p.shield || 0, max: SHIELD_CAP, stat: '' });
+    return rows;
+  }
+
   function chipsHtml() {
-    if (!player) return '';
-    const omniUnlocked = (player.laserLevel || 0) >= OMNI_UNLOCK_LASER;
-    return (
-      buildChipHtml('Multi', player.multishot, MULTISHOT_MAX) +
-      buildChipHtml('Pierce', player.pierce || 0, PIERCE_MAX) +
-      buildChipHtml('Laser', player.laserLevel || 0, LASER_MAX_LEVEL) +
-      buildChipHtml('Orbit', player.orbitOrbs || 0, ORBIT_MAX) +
-      (omniUnlocked
-        ? buildChipHtml('Omni', player.omniLevel || 0, OMNI_MAX_LEVEL)
-        : buildChipHtml('Omni', 0, OMNI_MAX_LEVEL, true)) +
-      buildChipHtml('Fairy', player.fairyLevel || 0, FAIRY_MAX) +
-      buildChipHtml('Spark', player.dmgLevel || 0, DMG_MAX) +
-      buildChipHtml('Rapid', player.rateLevel || 0, RATE_MAX) +
-      buildChipHtml('Sneak', player.spdLevel || 0, SPD_MAX) +
-      buildChipHtml('HP', player.maxHp, MAX_HP_CAP) +
-      buildChipHtml('Shield', player.shield || 0, SHIELD_CAP)
-    );
+    return chipRows().map(r => buildChipHtml(r.label, r.cur, r.max, r.locked)).join('');
+  }
+
+  /** Run HUD: 2-column grid — chip | live stat (+ thin level-progress meter). */
+  function runChipsHtml() {
+    return chipRows().map(r => {
+      const pct = (!r.locked && r.max) ? Math.max(0, Math.min(1, r.cur / r.max)) * 100 : 0;
+      const maxed = !r.locked && r.max != null && r.cur >= r.max;
+      const statCls = 'chip-stat' + (r.stat ? '' : ' empty') + (maxed ? ' maxed' : '');
+      const stat = r.stat
+        ? '<span class="' + statCls + '"><span class="chip-stat-txt">' + r.stat + '</span>' +
+          '<span class="chip-meter"><span class="chip-meter-fill" style="width:' + pct.toFixed(0) + '%"></span></span></span>'
+        : '<span class="' + statCls + '"></span>';
+      return buildChipHtml(r.label, r.cur, r.max, r.locked) + stat;
+    }).join('');
   }
 
   function syncLevelupStatus() {
@@ -2513,11 +2560,14 @@
     el.levelupStatus.innerHTML = chipsHtml();
   }
 
+  let lastRunChipsHtml = '';
   function syncRunChips() {
     if (!el.runChips) return;
     const show = (state === 'PLAYING' || state === 'PAUSED' || state === 'LEVELUP' || state === 'AMBER_CONTINUE') && !!player;
     el.runChips.classList.toggle('hidden', !show);
-    if (show) el.runChips.innerHTML = chipsHtml();
+    if (!show) return;
+    const html = runChipsHtml();
+    if (html !== lastRunChipsHtml) { el.runChips.innerHTML = html; lastRunChipsHtml = html; }
   }
 
   function offerLevelUp() {

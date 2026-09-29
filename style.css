@@ -758,14 +758,16 @@ html, body {
 }
 
 
-/* Run HUD chips — left column under HP/XP (v1.10) */
+/* Run HUD chips — left column under HP/XP (v1.10) + live stat column (v1.17) */
 .run-chips {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.22em;
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+  row-gap: 0.22em;
+  align-items: center;
+  justify-items: start;
   margin-top: 0.35em;
-  max-width: 12.5em;
+  max-width: 21em;
   pointer-events: none;
   max-height: 55vh;
   overflow: hidden;
@@ -776,10 +778,44 @@ html, body {
   padding: 0.14em 0.4em;
   background: rgba(12, 18, 30, 0.78);
 }
+/* Stat readout right of each chip: tiny text + thin level meter */
+.chip-stat {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.12em;
+  font-size: 0.54em;
+  font-weight: 700;
+  line-height: 1.1;
+  padding: 0.12em 0.36em 0.16em;
+  border-radius: 0.4em;
+  background: rgba(12, 18, 30, 0.62);
+  border: 1px solid rgba(160, 140, 200, 0.22);
+  color: #ffe8f0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.8);
+}
+.chip-stat.empty { visibility: hidden; padding: 0; border: 0; }
+.chip-stat.maxed { color: #a8e8c0; border-color: rgba(125, 206, 160, 0.4); }
+.chip-meter {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.chip-meter-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f0a0c0, #ffe8a0);
+}
+.chip-stat.maxed .chip-meter-fill { background: linear-gradient(90deg, #7dcea0, #a8e8c0); }
 @media (orientation: portrait) and (max-width: 520px) {
   .run-chips {
-    max-width: 10.5em;
+    max-width: 19em;
     max-height: 42vh;
   }
   .run-chips .lvl-chip { font-size: 0.56em; }
+  .chip-stat { font-size: 0.5em; }
 }

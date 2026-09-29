@@ -1,10 +1,10 @@
-# Slime Barrage v1.16
+# Slime Barrage v1.17
 
 A tiny **2D pixel-art auto-survivor** (original IP). Move a casual pink-hair hoodie girl across an **infinite night grass meadow** while she **auto-fires** sparks at cute colorful slime blobs. Collect XP gems, level up, pick upgrades, and either **defeat the Amber Colossus King** (Survival) or **win Timed at 6:00**.
 
 Inspired by the *feel* of Holocure / Vampire Survivors — **no Hololive names, logos, characters, assets, or music**.
 
-> **v1.16** — Pink-Mint Monarch and Big Kings fire slow skin-colored blasts at the player every **5s** (10/12 dmg, shield/invuln respected). Cache-bust `?v=1.16b`.
+> **v1.17** — Live **weapon stat column** beside the left HUD chips (damage · shots/s per weapon, stat effects, thin level meter). Cache-bust `?v=1.17`.
 
 ## How to play
 
@@ -67,6 +67,19 @@ Scoring:
 
 - **Survival:** `time×5 + kills×12 + lv×20`
 - **Timed:** `kills×10 + time×2 + lv×25`
+
+## What’s new in v1.17
+
+- **Live stat column** right of the left run chips (one line per chip, aligned to its row, with a thin level-progress meter). Updates live as upgrades are picked:
+  - **Multi** (main spark): `dmg` = spark damage · `/s` = sparks per second (multishot ÷ fire cooldown).
+  - **Pierce**: enemies each spark can hit.
+  - **Laser**: beam damage · beams/s (1 ÷ (cooldown + 0.35s telegraph)).
+  - **Orbit**: orb tick damage (18 + 0.6×player level) · max hits/s per enemy (0.18s throttle).
+  - **Omni**: ray damage ×rays · bursts/s (1 ÷ (cooldown + 0.28s telegraph)).
+  - **Fairy**: shot damage · total fairy shots/s (fairies ÷ fire cooldown).
+  - **Spark** damage · **Rapid** volleys/s · **Sneak** move speed · **HP** regen.
+  - Weapon lines appear once owned (main spark always). Level-up screen chips unchanged.
+- Cache-bust `?v=1.17`. Balance unchanged.
 
 ## What’s new in v1.16
 
